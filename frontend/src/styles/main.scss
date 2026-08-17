@@ -1,0 +1,14 @@
+// ===========================================================================
+//  OmniGuard AI — Stark Quantum theme entry point.
+//
+//  Load order matters: fonts, then tokens (which every later partial depends
+//  on), then base, then the motion layer.
+//
+//  Tailwind is imported separately in index.css so its preflight lands before
+//  this file — that way these styles win without needing !important.
+// ===========================================================================
+
+@use 'fonts';
+@use 'tokens';
+@use 'base';
+@use 'animations';

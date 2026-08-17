@@ -1,0 +1,152 @@
+// ===========================================================================
+//  Base layer — document, typography scale, chrome.
+// ===========================================================================
+
+@use 'tokens' as t;
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';  // Inter's cleaner
+                                                          // single-storey glyphs
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// --------------------------------------------------------------- typography
+// Display face for anything structural; body face for prose and UI.
+h1, h2, h3, h4, h5, h6,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+h1 { letter-spacing: -0.025em; }
+
+// Large standalone figures read best in the display face, tightened up.
+.figure {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+// Columns that must align vertically get tabular figures; standalone hero
+// numbers keep proportional ones.
+.tnum { font-variant-numeric: tabular-nums; }
+
+code, pre, .mono {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 0.92em;
+}
+
+// ------------------------------------------------------------------- chrome
+// Ambient aurora behind the header. Two offset radial washes rather than one,
+// so the light reads as coming from a source instead of a flat vignette.
+.aurora {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 340px;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 120% at 78% 0%, rgba(0, 240, 255, 0.16), transparent 68%),
+    radial-gradient(42% 100% at 18% 0%, rgba(57, 255, 20, 0.07), transparent 70%);
+}
+
+// Faint engineering grid over the page plane — visible enough to give the
+// dark field texture, faint enough never to compete with content.
+.grid-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(30, 41, 59, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+
+.panel {
+  @include t.glass;
+  border-radius: 14px;
+}
+
+// Frosted floating surfaces: the assistant panel and the nav bar.
+.liquid-glass {
+  @include t.liquid-glass;
+  border-radius: 18px;
+}
+
+// Inside a liquid-glass pane the backdrop is busy, so text needs a touch more
+// weight than it would on a solid surface to hold its edges.
+.on-glass {
+  text-shadow: 0 1px 2px rgba(3, 7, 18, 0.55);
+}
+
+// Message bubbles sit on top of an already-blurred pane. Blurring again would
+// be wasted work, so these are simple translucent fills with a hairline rim.
+.bubble-glass {
+  background: rgba(226, 232, 240, 0.07);
+  border: 1px solid rgba(226, 232, 240, 0.10);
+}
+
+.bubble-glass-accent {
+  background: linear-gradient(140deg,
+    rgba(0, 240, 255, 0.22),
+    rgba(0, 240, 255, 0.10));
+  border: 1px solid rgba(0, 240, 255, 0.32);
+}
+
+// ---------------------------------------------------------------- utilities
+.glow-cyan    { @include t.glow(t.stark('cyan')); }
+.glow-lime    { @include t.glow(t.stark('lime')); }
+.glow-crimson { @include t.glow(t.stark('crimson')); }
+
+.text-glow-cyan { @include t.text-glow(t.stark('cyan')); }
+
+// Headline treatment: steel into cyan, with a matching bloom behind it.
+.headline {
+  @include t.gradient-text(t.stark('steel'), t.stark('cyan'));
+  position: relative;
+}
+
+.accent-rule {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(0, 240, 255, 0.55),
+    transparent);
+}
+
+// ----------------------------------------------------------------- scrollbar
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+
+  &:hover { background: rgba(0, 240, 255, 0.4); }
+}
+
+// Focus ring — visible, on-brand, and never removed without replacement.
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: rgba(0, 240, 255, 0.28);
+  color: var(--ink);
+}

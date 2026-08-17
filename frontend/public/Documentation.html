@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OmniGuard AI — Technical Documentation</title>
+<link rel="icon" type="image/png" href="/logo-mark.png" />
+<style>
+  /* Self-hosted, same fonts as the application. */
+  @font-face { font-family:'Space Grotesk'; src:url('/fonts/SpaceGrotesk-700.woff2') format('woff2'); font-weight:700; font-display:swap; }
+  @font-face { font-family:'Space Grotesk'; src:url('/fonts/SpaceGrotesk-600.woff2') format('woff2'); font-weight:600; font-display:swap; }
+  @font-face { font-family:'Space Grotesk'; src:url('/fonts/SpaceGrotesk-500.woff2') format('woff2'); font-weight:500; font-display:swap; }
+  @font-face { font-family:'Inter'; src:url('/fonts/Inter-400.woff2') format('woff2'); font-weight:400; font-display:swap; }
+  @font-face { font-family:'Inter'; src:url('/fonts/Inter-500.woff2') format('woff2'); font-weight:500; font-display:swap; }
+  @font-face { font-family:'Inter'; src:url('/fonts/Inter-600.woff2') format('woff2'); font-weight:600; font-display:swap; }
+  @font-face { font-family:'Inter'; src:url('/fonts/Inter-700.woff2') format('woff2'); font-weight:700; font-display:swap; }
+
+  :root {
+    --void:#030712; --glass:#0B132B; --s2:#101B3D; --s3:#142350;
+    --cyan:#00F0FF; --lime:#39FF14; --amber:#FFB703; --crimson:#FF3B5C;
+    --steel:#E2E8F0; --slate:#94A3B8; --grid:#1E293B;
+    --display:'Space Grotesk', system-ui, sans-serif;
+    --body:'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--void); color:var(--steel);
+    font-family:var(--body); font-size:15px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 28px 100px; }
+
+  h1,h2,h3,h4 { font-family:var(--display); letter-spacing:-.02em; line-height:1.2; }
+  h1 { font-size:clamp(2rem,5vw,3.2rem); margin:0 0 .3em; }
+  h2 {
+    font-size:clamp(1.4rem,3vw,2rem); margin:3.5rem 0 1rem;
+    padding-bottom:.5rem; border-bottom:1px solid var(--grid);
+  }
+  h3 { font-size:1.15rem; margin:2.2rem 0 .7rem; color:var(--cyan); }
+  h4 { font-size:1rem; margin:1.6rem 0 .5rem; }
+  p { margin:0 0 1rem; }
+  a { color:var(--cyan); }
+  strong { color:#fff; font-weight:600; }
+  code {
+    font-family:ui-monospace,'Cascadia Mono',Menlo,monospace; font-size:.88em;
+    background:var(--s2); padding:.14em .42em; border-radius:4px; color:var(--cyan);
+  }
+  pre {
+    background:var(--glass); border:1px solid var(--grid); border-radius:10px;
+    padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.6;
+  }
+  pre code { background:none; padding:0; color:var(--slate); }
+
+  header.cover {
+    padding:70px 0 40px; text-align:center;
+    border-bottom:1px solid var(--grid); margin-bottom:14px;
+  }
+  header.cover img { height:78px; width:auto; filter:drop-shadow(0 0 22px rgba(0,240,255,.4)); }
+  .tagline { font-family:var(--display); letter-spacing:.26em; font-size:11px; color:var(--slate); margin-top:14px; }
+  .sub { color:var(--slate); max-width:620px; margin:14px auto 0; }
+
+  table { width:100%; border-collapse:collapse; margin:1.2rem 0; font-size:13.5px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--grid); vertical-align:top; }
+  th { font-family:var(--display); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--slate); }
+  tbody tr:hover { background:rgba(0,240,255,.04); }
+
+  .card { background:var(--glass); border:1px solid var(--grid); border-radius:12px; padding:20px 22px; margin:1.2rem 0; }
+  .cols { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+  .ok    { color:var(--lime);    background:rgba(57,255,20,.13);  border:1px solid rgba(57,255,20,.34); }
+  .part  { color:var(--amber);   background:rgba(255,183,3,.13);  border:1px solid rgba(255,183,3,.34); }
+  .no    { color:var(--crimson); background:rgba(255,59,92,.13);  border:1px solid rgba(255,59,92,.34); }
+
+  .note { border-left:3px solid var(--cyan); background:rgba(0,240,255,.05); padding:14px 18px; border-radius:0 8px 8px 0; margin:1.2rem 0; }
+  .warn { border-left:3px solid var(--amber); background:rgba(255,183,3,.06); padding:14px 18px; border-radius:0 8px 8px 0; margin:1.2rem 0; }
+
+  figure { margin:1.6rem 0; }
+  figure svg { width:100%; height:auto; background:var(--glass); border:1px solid var(--grid); border-radius:12px; }
+  figcaption { font-size:12px; color:var(--slate); margin-top:8px; text-align:center; }
+
+  .stat-row { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); margin:1.4rem 0; }
+  .stat { background:var(--glass); border:1px solid var(--grid); border-radius:10px; padding:14px; text-align:center; }
+  .stat b { display:block; font-family:var(--display); font-size:1.7rem; color:var(--cyan); line-height:1; }
+  .stat span { font-size:11.5px; color:var(--slate); }
+
+  nav.toc { background:var(--glass); border:1px solid var(--grid); border-radius:12px; padding:20px 24px; margin:26px 0; }
+  nav.toc ol { margin:0; padding-left:20px; columns:2; column-gap:34px; }
+  nav.toc li { margin:.28em 0; font-size:13.5px; }
+  nav.toc a { text-decoration:none; color:var(--steel); }
+  nav.toc a:hover { color:var(--cyan); }
+
+  footer { margin-top:60px; padding-top:22px; border-top:1px solid var(--grid); font-size:12px; color:var(--slate); }
+
+  @media print {
+    body { background:#fff; color:#111; }
+    .wrap { max-width:none; }
+    h3 { color:#0b6; } a { color:#06c; }
+    figure svg, .card, pre, nav.toc, .stat { background:#fafafa; border-color:#ddd; }
+    code { background:#eee; color:#a03; }
+    nav.toc { break-after:page; }
+    h2 { break-after:avoid; }
+    figure, table { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <img src="/logo.png" alt="OmniGuard AI" />
+  <div class="tagline">SEE BEYOND THE REAL</div>
+  <h1 style="margin-top:26px">Technical Documentation</h1>
+  <p class="sub">
+    A deepfake and AI-generated media detection platform that runs entirely on a local machine,
+    explains every verdict it produces, and states plainly what it cannot do.
+  </p>
+</header>
+
+<div class="stat-row">
+  <div class="stat"><b>3</b><span>trained CNNs</span></div>
+  <div class="stat"><b>190k</b><span>training images</span></div>
+  <div class="stat"><b>203</b><span>automated tests</span></div>
+  <div class="stat"><b>~200ms</b><span>per image, CPU</span></div>
+  <div class="stat"><b>0</b><span>cloud calls</span></div>
+</div>
+
+<nav class="toc">
+  <strong style="font-family:var(--display);display:block;margin-bottom:10px">Contents</strong>
+  <ol>
+    <li><a href="#problem">The problem</a></li>
+    <li><a href="#what">What the system does</a></li>
+    <li><a href="#architecture">System architecture</a></li>
+    <li><a href="#pipeline">Detection pipeline</a></li>
+    <li><a href="#video">Video analysis</a></li>
+    <li><a href="#training">Model training</a></li>
+    <li><a href="#explain">Explainability</a></li>
+    <li><a href="#forensics">Forensic signals</a></li>
+    <li><a href="#identity">Face recognition</a></li>
+    <li><a href="#stack">Technology choices</a></li>
+    <li><a href="#decisions">Engineering decisions</a></li>
+    <li><a href="#data">Data model</a></li>
+    <li><a href="#api">API reference</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#testing">Testing</a></li>
+    <li><a href="#structure">Project structure</a></li>
+    <li><a href="#limits">Limitations</a></li>
+    <li><a href="#running">Running it</a></li>
+    <li><a href="#future">Future work</a></li>
+  </ol>
+</nav>
+
+<!-- ==================================================================== -->
+<h2 id="problem">1. The problem</h2>
+
+<p>
+  Synthetic media has crossed the threshold where a convincing forgery no longer requires
+  skill, budget, or time. A face can be swapped into a video with consumer software; a person
+  who never existed can be generated in seconds. The consequences are already concrete:
+  non-consensual imagery, fraud that impersonates executives on video calls, political
+  disinformation, and evidence that cannot be trusted.
+</p>
+
+<p>
+  The defensive problem is harder than the offensive one. A forger needs one convincing
+  output. A detector needs to be right consistently, across generators it has never seen,
+  on media that has been re-compressed and resized on its way through social platforms.
+</p>
+
+<div class="note">
+  <strong>The design position taken here.</strong> A detector that outputs a bare
+  <em>real / fake</em> label is not useful in a decision that matters. OmniGuard is built
+  around three commitments: it <strong>shows its evidence</strong> (a heatmap of the pixels
+  that drove the score), it <strong>admits uncertainty</strong> (a middle "suspicious" band
+  rather than a forced binary), and it <strong>states its limits</strong> in the product
+  itself rather than in a footnote.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="what">2. What the system does</h2>
+
+<table>
+  <thead><tr><th style="width:26%">Capability</th><th style="width:14%">Status</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td>Image deepfake detection</td><td><span class="pill ok">Working</span></td><td>Ensemble of three fine-tuned CNNs, scored per detected face</td></tr>
+    <tr><td>Video deepfake detection</td><td><span class="pill ok">Working</span></td><td>Frame sampling, per-person tracking, temporal variance analysis</td></tr>
+    <tr><td>Face detection</td><td><span class="pill ok">Working</span></td><td>OpenCV YuNet — CPU, five landmarks per face</td></tr>
+    <tr><td>Face recognition</td><td><span class="pill ok">Working</span></td><td>OpenCV SFace, 128-d embeddings, enrollable gallery</td></tr>
+    <tr><td>Explainability heatmap</td><td><span class="pill ok">Working</span></td><td>Class Activation Map, computed forward-only</td></tr>
+    <tr><td>Metadata forensics</td><td><span class="pill ok">Working</span></td><td>EXIF: camera, software traces, GPS, stripping detection</td></tr>
+    <tr><td>Error Level Analysis</td><td><span class="pill ok">Working</span></td><td>JPEG recompression residual, block-level variance</td></tr>
+    <tr><td>C2PA provenance</td><td><span class="pill part">Presence only</span></td><td>Detects the manifest; does <em>not</em> verify its signature</td></tr>
+    <tr><td>Local accounts</td><td><span class="pill ok">Working</span></td><td>scrypt hashing, HttpOnly session cookies</td></tr>
+    <tr><td>In-app assistant</td><td><span class="pill ok">Working</span></td><td>Curated knowledge base with live database access</td></tr>
+    <tr><td>Audio / voice cloning</td><td><span class="pill no">Not built</span></td><td>Requires a separate model and dataset; labelled as such in the UI</td></tr>
+    <tr><td>AI-generated text</td><td><span class="pill no">Not built</span></td><td>A language-model problem, not a vision one</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Unbuilt modules appear in the interface as clearly marked placeholders that explain what
+  building them would involve. Nothing in the product displays invented numbers.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="architecture">3. System architecture</h2>
+
+<p>
+  The system splits along a deliberate seam: <strong>training happens once, on borrowed GPU
+  hardware; inference happens locally, forever, on a CPU.</strong> These two environments have
+  genuinely different requirements, so they use different runtimes.
+</p>
+
+<figure>
+<svg viewBox="0 0 940 620" role="img" aria-label="System architecture diagram">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#00F0FF"/>
+    </marker>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+  <style>
+    .b{fill:#101B3D;stroke:#1E293B;stroke-width:1.4;rx:9}
+    .bc{fill:rgba(0,240,255,.09);stroke:rgba(0,240,255,.42);stroke-width:1.4;rx:9}
+    .bl{fill:rgba(57,255,20,.08);stroke:rgba(57,255,20,.4);stroke-width:1.4;rx:9}
+    .t{fill:#E2E8F0;font:600 12px 'Inter',sans-serif}
+    .ts{fill:#94A3B8;font:11px 'Inter',sans-serif}
+    .h{fill:#00F0FF;font:700 11px 'Space Grotesk',sans-serif;letter-spacing:.1em}
+    .zone{fill:none;stroke:#1E293B;stroke-width:1.2;stroke-dasharray:6 5;rx:14}
+    .ln{stroke:#00F0FF;stroke-width:1.6;fill:none;marker-end:url(#ar)}
+    .ln2{stroke:#94A3B8;stroke-width:1.3;fill:none;marker-end:url(#ar2)}
+  </style>
+
+  <!-- TRAINING ZONE -->
+  <rect class="zone" x="18" y="14" width="904" height="150"/>
+  <text class="h" x="34" y="38">PHASE 1 — TRAINING (ONCE, GOOGLE COLAB FREE T4 GPU)</text>
+
+  <rect class="b" x="34" y="52" width="168" height="86"/>
+  <text class="t" x="48" y="78">FaceForensics++</text>
+  <text class="ts" x="48" y="97">~190,000 face crops</text>
+  <text class="ts" x="48" y="113">4 forgery methods</text>
+  <text class="ts" x="48" y="129">via HuggingFace</text>
+
+  <rect class="b" x="248" y="52" width="176" height="86"/>
+  <text class="t" x="262" y="78">Augmentation</text>
+  <text class="ts" x="262" y="97">JPEG recompression</text>
+  <text class="ts" x="262" y="113">blur · crop · flip</text>
+  <text class="ts" x="262" y="129">colour jitter</text>
+
+  <rect class="bc" x="470" y="52" width="192" height="86"/>
+  <text class="t" x="484" y="78">Fine-tune 3 CNNs</text>
+  <text class="ts" x="484" y="97">EfficientNet-B0</text>
+  <text class="ts" x="484" y="113">XceptionNet</text>
+  <text class="ts" x="484" y="129">MobileNetV3</text>
+
+  <rect class="b" x="708" y="52" width="196" height="86"/>
+  <text class="t" x="722" y="78">Evaluate + export</text>
+  <text class="ts" x="722" y="97">held-out test split</text>
+  <text class="ts" x="722" y="113">ROC-AUC, F1, CM</text>
+  <text class="ts" x="722" y="129">→ ONNX, 2 outputs</text>
+
+  <path class="ln" d="M206 95 H244"/>
+  <path class="ln" d="M428 95 H466"/>
+  <path class="ln" d="M666 95 H704"/>
+
+  <!-- handoff -->
+  <path class="ln" d="M806 142 V196"/>
+  <text class="ts" x="818" y="176">omniguard_models.zip</text>
+
+  <!-- LOCAL ZONE -->
+  <rect class="zone" x="18" y="200" width="904" height="404"/>
+  <text class="h" x="34" y="224">PHASE 2 — INFERENCE (LOCAL MACHINE, CPU ONLY, NO NETWORK)</text>
+
+  <!-- browser -->
+  <rect class="b" x="34" y="240" width="250" height="120"/>
+  <text class="t" x="48" y="266">Browser — React SPA</text>
+  <text class="ts" x="48" y="286">Landing · Dashboard · Scanner</text>
+  <text class="ts" x="48" y="302">Report · History · Face ID</text>
+  <text class="ts" x="48" y="318">Vite · Tailwind · Sass · GSAP</text>
+  <text class="ts" x="48" y="340">served as static files by FastAPI</text>
+
+  <path class="ln" d="M288 288 H344"/>
+  <text class="ts" x="292" y="280">HTTP</text>
+
+  <!-- fastapi -->
+  <rect class="bc" x="348" y="240" width="244" height="120"/>
+  <text class="t" x="362" y="266">FastAPI — main.py</text>
+  <text class="ts" x="362" y="286">/api/scan · /api/auth</text>
+  <text class="ts" x="362" y="302">/api/identity · /api/models</text>
+  <text class="ts" x="362" y="318">/api/assistant · /api/stats</text>
+  <text class="ts" x="362" y="340">upload validation · session cookies</text>
+
+  <!-- storage -->
+  <rect class="b" x="640" y="240" width="264" height="120"/>
+  <text class="t" x="654" y="266">SQLite — database.py</text>
+  <text class="ts" x="654" y="286">scans · identities</text>
+  <text class="ts" x="654" y="302">users · sessions</text>
+  <text class="ts" x="654" y="318">WAL journalling</text>
+  <text class="ts" x="654" y="340">single shared lock, closing sessions</text>
+
+  <path class="ln" d="M596 288 H636"/>
+
+  <!-- analysis layer -->
+  <path class="ln" d="M470 364 V400"/>
+
+  <rect class="b" x="34" y="404" width="200" height="104"/>
+  <text class="t" x="48" y="430">faces.py</text>
+  <text class="ts" x="48" y="450">YuNet detection</text>
+  <text class="ts" x="48" y="466">SFace embeddings</text>
+  <text class="ts" x="48" y="482">cross-frame tracking</text>
+
+  <rect class="bc" x="254" y="404" width="216" height="104"/>
+  <text class="t" x="268" y="430">detector.py</text>
+  <text class="ts" x="268" y="450">ONNX Runtime ensemble</text>
+  <text class="ts" x="268" y="466">softmax vote averaging</text>
+  <text class="ts" x="268" y="482">CAM heatmap (numpy)</text>
+
+  <rect class="b" x="490" y="404" width="200" height="104"/>
+  <text class="t" x="504" y="430">forensics.py</text>
+  <text class="ts" x="504" y="450">EXIF metadata</text>
+  <text class="ts" x="504" y="466">Error Level Analysis</text>
+  <text class="ts" x="504" y="482">C2PA presence</text>
+
+  <rect class="bl" x="710" y="404" width="194" height="104"/>
+  <text class="t" x="724" y="430">pipeline.py</text>
+  <text class="ts" x="724" y="450">orchestration</text>
+  <text class="ts" x="724" y="466">video.py for clips</text>
+  <text class="ts" x="724" y="482">report assembly</text>
+
+  <path class="ln2" d="M234 456 H250"/>
+  <path class="ln2" d="M470 456 H486"/>
+  <path class="ln2" d="M690 456 H706"/>
+
+  <!-- models on disk -->
+  <rect class="b" x="254" y="532" width="216" height="56"/>
+  <text class="t" x="268" y="556">backend/models/*.onnx</text>
+  <text class="ts" x="268" y="574">3 classifiers + YuNet + SFace</text>
+  <path class="ln2" d="M362 528 V512"/>
+</svg>
+<figcaption>Figure 1 — Two-phase architecture. Training runs once on borrowed GPU; everything after is local and offline.</figcaption>
+</figure>
+
+<!-- ==================================================================== -->
+<h2 id="pipeline">4. Detection pipeline</h2>
+
+<p>Every uploaded image follows the same path. Timings are measured on the target machine: an Intel i3-1005G1, two cores, no GPU.</p>
+
+<figure>
+<svg viewBox="0 0 940 360" role="img" aria-label="Image detection pipeline">
+  <style>
+    .s{fill:#101B3D;stroke:#1E293B;stroke-width:1.4;rx:9}
+    .sc{fill:rgba(0,240,255,.10);stroke:rgba(0,240,255,.45);stroke-width:1.4;rx:9}
+    .n{fill:#00F0FF;font:700 13px 'Space Grotesk',sans-serif}
+    .l{fill:#E2E8F0;font:600 12px 'Inter',sans-serif}
+    .d{fill:#94A3B8;font:10.5px 'Inter',sans-serif}
+    .fl{stroke:#00F0FF;stroke-width:1.6;fill:none;marker-end:url(#ar)}
+  </style>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#00F0FF"/></marker></defs>
+
+  <rect class="s" x="14" y="30" width="140" height="96"/>
+  <text class="n" x="28" y="54">01</text><text class="l" x="28" y="76">Upload</text>
+  <text class="d" x="28" y="94">extension + size</text><text class="d" x="28" y="109">validation</text>
+
+  <rect class="s" x="176" y="30" width="140" height="96"/>
+  <text class="n" x="190" y="54">02</text><text class="l" x="190" y="76">Detect faces</text>
+  <text class="d" x="190" y="94">YuNet, 5 landmarks</text><text class="d" x="190" y="109">min 48px</text>
+
+  <rect class="s" x="338" y="30" width="140" height="96"/>
+  <text class="n" x="352" y="54">03</text><text class="l" x="352" y="76">Crop + margin</text>
+  <text class="d" x="352" y="94">20% beyond the box</text><text class="d" x="352" y="109">→ 224×224</text>
+
+  <rect class="sc" x="500" y="30" width="140" height="96"/>
+  <text class="n" x="514" y="54">04</text><text class="l" x="514" y="76">Ensemble</text>
+  <text class="d" x="514" y="94">3 ONNX models</text><text class="d" x="514" y="109">mean of softmax</text>
+
+  <rect class="sc" x="662" y="30" width="140" height="96"/>
+  <text class="n" x="676" y="54">05</text><text class="l" x="676" y="76">CAM heatmap</text>
+  <text class="d" x="676" y="94">Σ W·features</text><text class="d" x="676" y="109">forward-only</text>
+
+  <path class="fl" d="M158 78 H172"/><path class="fl" d="M320 78 H334"/>
+  <path class="fl" d="M482 78 H496"/><path class="fl" d="M644 78 H658"/>
+
+  <path class="fl" d="M732 130 V166"/>
+
+  <rect class="s" x="176" y="170" width="180" height="96"/>
+  <text class="n" x="190" y="194">06</text><text class="l" x="190" y="216">EXIF metadata</text>
+  <text class="d" x="190" y="234">camera · software · GPS</text><text class="d" x="190" y="249">stripping detection</text>
+
+  <rect class="s" x="378" y="170" width="180" height="96"/>
+  <text class="n" x="392" y="194">07</text><text class="l" x="392" y="216">Error Level Analysis</text>
+  <text class="d" x="392" y="234">recompress + diff</text><text class="d" x="392" y="249">block-level variance</text>
+
+  <rect class="s" x="580" y="170" width="180" height="96"/>
+  <text class="n" x="594" y="194">08</text><text class="l" x="594" y="216">C2PA check</text>
+  <text class="d" x="594" y="234">manifest presence</text><text class="d" x="594" y="249">not signature-verified</text>
+
+  <path class="fl" d="M560 218 H576" stroke="#94A3B8"/><path class="fl" d="M358 218 H374" stroke="#94A3B8"/>
+
+  <rect class="sc" x="378" y="292" width="180" height="52"/>
+  <text class="l" x="392" y="316">09 — Report assembled</text>
+  <text class="d" x="392" y="333">verdict · confidence · findings · timeline</text>
+  <path class="fl" d="M468 270 V288"/>
+</svg>
+<figcaption>Figure 2 — Image pipeline. Steps 6–8 are classical forensics, independent of the neural network.</figcaption>
+</figure>
+
+<h3>Verdict bands</h3>
+<p>The ensemble emits a probability that the face is manipulated. That maps onto three bands, configurable in <code>backend/config.py</code>:</p>
+
+<table>
+  <thead><tr><th>Band</th><th>Range</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill ok">✓ Authentic</span></td><td>&lt; 0.40</td><td>No manipulation signature detected</td></tr>
+    <tr><td><span class="pill part">! Suspicious</span></td><td>0.40 – 0.65</td><td>Warrants a second look; not an accusation</td></tr>
+    <tr><td><span class="pill no">✕ Fake</span></td><td>≥ 0.65</td><td>Manipulation signature detected</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Why a middle band exists.</strong> A forced binary hides genuine uncertainty. On a
+  question with these consequences, "I am not sure" is a more honest output than a confident
+  coin-flip. When an image scores 0.51, the useful action is <em>look closer</em> — not
+  <em>accuse</em> and not <em>clear</em>.
+</div>
+
+<p>
+  When several faces are present, <strong>the most suspicious face drives the overall verdict</strong>.
+  One forged face in a group photograph makes the image manipulated, and averaging would
+  dilute exactly the evidence that matters.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="video">5. Video analysis</h2>
+
+<p>
+  Analysing every frame of a clip would take minutes on a CPU. Instead the system samples
+  <strong>32 frames evenly across the clip</strong> and aggregates along two independent axes.
+</p>
+
+<figure>
+<svg viewBox="0 0 940 300" role="img" aria-label="Video analysis flow">
+  <style>
+    .vs{fill:#101B3D;stroke:#1E293B;stroke-width:1.4;rx:9}
+    .vc{fill:rgba(0,240,255,.10);stroke:rgba(0,240,255,.45);stroke-width:1.4;rx:9}
+    .vl{fill:rgba(57,255,20,.08);stroke:rgba(57,255,20,.4);stroke-width:1.4;rx:9}
+    .vt{fill:#E2E8F0;font:600 12px 'Inter',sans-serif}
+    .vd{fill:#94A3B8;font:10.5px 'Inter',sans-serif}
+    .vh{fill:#00F0FF;font:700 11px 'Space Grotesk',sans-serif;letter-spacing:.08em}
+    .vf{stroke:#00F0FF;stroke-width:1.5;fill:none;marker-end:url(#va)}
+  </style>
+  <defs><marker id="va" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#00F0FF"/></marker></defs>
+
+  <rect class="vs" x="14" y="60" width="146" height="80"/>
+  <text class="vt" x="28" y="88">Video upload</text>
+  <text class="vd" x="28" y="107">MP4 · MOV · AVI</text>
+  <text class="vd" x="28" y="123">MKV · WEBM</text>
+
+  <rect class="vs" x="184" y="60" width="150" height="80"/>
+  <text class="vt" x="198" y="88">Sample 32 frames</text>
+  <text class="vd" x="198" y="107">evenly across clip</text>
+  <text class="vd" x="198" y="123">np.linspace indices</text>
+
+  <rect class="vc" x="358" y="60" width="160" height="80"/>
+  <text class="vt" x="372" y="88">Score every face</text>
+  <text class="vd" x="372" y="107">per frame, per face</text>
+  <text class="vd" x="372" y="123">same ensemble</text>
+
+  <path class="vf" d="M164 100 H180"/><path class="vf" d="M338 100 H354"/>
+
+  <!-- two axes -->
+  <path class="vf" d="M522 88 H560"/>
+  <path class="vf" d="M522 116 H560"/>
+
+  <rect class="vl" x="564" y="34" width="176" height="72"/>
+  <text class="vh" x="578" y="56">AXIS 1 — PER PERSON</text>
+  <text class="vd" x="578" y="76">track by SFace embedding</text>
+  <text class="vd" x="578" y="92">IoU fallback, own timeline</text>
+
+  <rect class="vl" x="564" y="120" width="176" height="76"/>
+  <text class="vh" x="578" y="142">AXIS 2 — OVER TIME</text>
+  <text class="vd" x="578" y="162">std-dev of each person's</text>
+  <text class="vd" x="578" y="178">scores; σ &gt; 0.18 = unstable</text>
+
+  <rect class="vc" x="770" y="72" width="156" height="96"/>
+  <text class="vt" x="784" y="98">Clip verdict</text>
+  <text class="vd" x="784" y="118">0.6 × peak</text>
+  <text class="vd" x="784" y="134">+ 0.4 × mean</text>
+  <text class="vd" x="784" y="154">+ temporal flag</text>
+
+  <path class="vf" d="M744 70 L766 100"/><path class="vf" d="M744 158 L766 132"/>
+
+  <text class="vd" x="14" y="236">Why peak-weighted: a convincing fake only breaks down in SOME frames. A plain mean would average away exactly the evidence that matters.</text>
+  <text class="vd" x="14" y="258">Why variance is a signal: a real face scores consistently; a swapped one flickers as the generator struggles with pose, blinking and occlusion.</text>
+</svg>
+<figcaption>Figure 3 — Video aggregation along two axes: who, and when.</figcaption>
+</figure>
+
+<!-- ==================================================================== -->
+<h2 id="training">6. Model training</h2>
+
+<p>
+  The target machine has no GPU, so training happens once on Google Colab's free T4 and the
+  result is exported for local use. <code>training/train.py</code> is the single source of
+  truth — the Colab notebook writes that exact file out and executes it, so the two cannot
+  drift apart.
+</p>
+
+<h3>Dataset</h3>
+<p>
+  <strong>FaceForensics++</strong> face crops (~190,000 images), the standard academic
+  benchmark, containing real forgeries from four distinct methods: <em>Deepfakes</em>,
+  <em>Face2Face</em>, <em>FaceSwap</em> and <em>NeuralTextures</em>. Training across all four
+  is what prevents the network latching onto the quirks of a single generator.
+</p>
+<p>
+  Sources are pulled anonymously from HuggingFace — no account, no API token, no dataset
+  request form. The loader tries a ranked list of mirrors and reports which one succeeded,
+  so a moved dataset degrades to a message rather than a stack trace.
+</p>
+
+<h3>Architectures</h3>
+<table>
+  <thead><tr><th>Model</th><th>Why it is in the ensemble</th></tr></thead>
+  <tbody>
+    <tr><td><strong>EfficientNet-B0</strong></td><td>Strong accuracy-per-parameter; the primary model, and the one used for heatmaps</td></tr>
+    <tr><td><strong>XceptionNet</strong></td><td>The historical baseline for FaceForensics++; depthwise-separable convolutions catch different artifacts</td></tr>
+    <tr><td><strong>MobileNetV3</strong></td><td>Different inductive biases again; cheap enough that adding it costs little at inference</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Their votes are averaged. This is not decoration — <strong>different architectures fail on
+  different images</strong>, so the mean beats any single member. Where they disagree, the
+  report surfaces a <em>model agreement</em> figure rather than hiding it behind a confident number.
+</p>
+
+<h3>Augmentation</h3>
+<div class="note">
+  <strong>JPEG recompression is the highest-value augmentation for this task.</strong>
+  Without it the network learns compression artifacts rather than forgery artifacts, and
+  collapses the moment an image is re-saved or passes through a social platform. Random
+  quality between 40 and 95 is applied to half of all training samples, alongside
+  resized-crop, horizontal flip, colour jitter and Gaussian blur.
+</div>
+
+<h3>Export</h3>
+<p>Each model exports to ONNX with <strong>two outputs</strong>:</p>
+<pre><code>input     (N, 3, 224, 224)   normalised image batch
+logits    (N, 2)             [real, fake] scores
+features  (N, C, H, W)       final convolutional feature map</code></pre>
+<p>
+  The second output is what makes local explainability possible. The training script then
+  verifies each exported model against PyTorch on real test batches and fails loudly if
+  predictions drift by more than 0.01 — a silent export mismatch would mean the laptop
+  scoring images differently from the reported accuracy.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="explain">7. Explainability</h2>
+
+<p>
+  Every verdict ships with a <strong>Class Activation Map</strong>: a heatmap over the face
+  showing which regions pushed the score toward "fake". Red argued for manipulation, blue
+  argued for authenticity.
+</p>
+
+<p>
+  This is not an approximation. Because these networks end in global-average-pooling followed
+  by a single linear layer, the fake logit decomposes <em>exactly</em> into a weighted sum
+  over the final feature map:
+</p>
+
+<pre><code>cam(y, x) = Σ_c  W[fake, c] · features[c, y, x]</code></pre>
+
+<p>
+  The map is therefore a faithful spatial breakdown of the decision the model actually made.
+  On a genuine face swap, the heat concentrates along the jawline, hairline, and the edges of
+  the eyes and mouth — precisely where blending is hardest.
+</p>
+
+<div class="note">
+  <strong>Why CAM rather than Grad-CAM.</strong> Grad-CAM requires backpropagation, and ONNX
+  Runtime performs forward passes only. For this network shape the two are mathematically
+  equivalent, and CAM needs nothing beyond the forward pass already computed. The result:
+  identical explanatory power, no PyTorch on the laptop, ~100 ms per face.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="forensics">8. Forensic signals</h2>
+
+<p>Three classical checks run alongside the network, entirely independently — which is what makes them worth having.</p>
+
+<div class="cols">
+  <div class="card">
+    <h4 style="margin-top:0">EXIF metadata</h4>
+    <p style="font-size:13px;margin:0">Cameras write rich capture data: make, model, exposure, GPS. Generative models write none, and most editors destroy it. Absence is weak evidence alone but meaningful alongside others. Editing-software traces are reported explicitly.</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">Error Level Analysis</h4>
+    <p style="font-size:13px;margin:0">Re-saves the image at a known JPEG quality and measures how much each region moves. Untouched areas sit near their compression fixed point; pasted or generated regions have a different compression history and move further. Block-level variance flags the difference.</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">C2PA provenance</h4>
+    <p style="font-size:13px;margin:0">Looks for an embedded Content Credentials manifest. <strong>Presence only</strong> — cryptographic validation against a trust list is not implemented, and the report says so. Absence is explicitly <em>not</em> treated as evidence of manipulation.</p>
+  </div>
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="identity">9. Face recognition</h2>
+
+<p>
+  Faces are reduced to <strong>128-dimension embeddings</strong> via OpenCV's SFace model,
+  where the same person's photographs cluster together and different people separate. Matching
+  uses cosine similarity at a threshold of <strong>0.363</strong> — OpenCV's published
+  recommendation for this model.
+</p>
+
+<p>
+  Re-enrolling a person averages their embeddings, which makes matching more robust across
+  pose and lighting. <strong>Only the vector is stored; the photograph is discarded
+  immediately.</strong>
+</p>
+
+<div class="note">
+  <strong>Why identity and manipulation are reported together.</strong> Neither half is
+  worth much alone. "This is a manipulated face" does not say whose. "This is Person X" does
+  not say whether the footage is real. The useful statement — the one that supports a
+  decision — is <em>"this claims to be Person X, and the face has been altered."</em>
+</div>
+
+<p>
+  The same embeddings drive video tracking, following each person across sampled frames so
+  they each get an independent authenticity timeline.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="stack">10. Technology choices</h2>
+
+<table>
+  <thead><tr><th style="width:20%">Layer</th><th style="width:26%">Choice</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td>Training runtime</td><td>PyTorch + timm (Colab T4)</td><td>Flexible, standard, and free on borrowed GPU hardware</td></tr>
+    <tr><td>Inference runtime</td><td><strong>ONNX Runtime 1.28</strong></td><td>~50 MB against PyTorch's 2 GB, and ~100 ms per face on a 2-core CPU. The difference between running on the target machine and not running at all.</td></tr>
+    <tr><td>Face detection</td><td>OpenCV YuNet</td><td>Built into OpenCV, fast on CPU, returns five landmarks. Avoids mediapipe and dlib, neither of which builds cleanly on Python 3.13.</td></tr>
+    <tr><td>Face recognition</td><td>OpenCV SFace</td><td>Also built in — zero additional dependencies for a whole feature</td></tr>
+    <tr><td>API</td><td>FastAPI + Uvicorn</td><td>Same language as the models, so no cross-process bridge; automatic OpenAPI docs</td></tr>
+    <tr><td>Storage</td><td>SQLite (WAL)</td><td>Ships with Python. No server to install, configure, or explain to a judge.</td></tr>
+    <tr><td>Frontend</td><td>React 18 + Vite</td><td>Fast builds; the dashboard is genuinely interactive, not a document</td></tr>
+    <tr><td>Styling</td><td>Tailwind v4 + Sass</td><td>Tailwind for layout velocity; Sass for the design-token system, so the whole theme changes from one file</td></tr>
+    <tr><td>Animation</td><td>GSAP + ScrollTrigger</td><td>Scroll-scrubbed hero and reveal choreography that CSS alone cannot express</td></tr>
+    <tr><td>Charts</td><td>Hand-written SVG</td><td>Three simple forms; a charting library would cost more bytes than the charts do</td></tr>
+    <tr><td>Fonts</td><td>Space Grotesk + Inter, self-hosted</td><td>A CDN font falls back to Times New Roman the moment venue wifi drops</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================================================================== -->
+<h2 id="decisions">11. Engineering decisions</h2>
+
+<h3>Why the 20% crop margin</h3>
+<p>
+  The blend seam of a face swap sits just <em>outside</em> the detector's bounding box.
+  Cropping tight to the box discards the most informative pixels in the image.
+</p>
+
+<h3>Why uploads are deleted immediately</h3>
+<p>
+  Previews are embedded in the report as data URIs, so the original file has served its
+  purpose once analysis completes. Retaining it would grow the disk without bound across a
+  long session — an early version accumulated 12 MB in a single test run.
+</p>
+
+<h3>Why route handlers never call each other</h3>
+<p>
+  FastAPI resolves parameter defaults such as <code>Form(None)</code> only through dependency
+  injection. Calling one route handler directly from another passes the raw <code>Form</code>
+  object instead of the value. This caused a real defect in which every video upload returned
+  HTTP 500. Shared logic now lives in plain functions that all routes call.
+</p>
+
+<h3>Why database sessions always close</h3>
+<div class="warn">
+  <strong>A corruption incident worth documenting.</strong> Every query originally used
+  <code>with sqlite3.connect(...) as conn:</code> — a context manager that commits but does
+  <strong>not</strong> close. Across 19 call sites this leaked a file handle on every query.
+  Combined with two independent locks over the same file, the database eventually developed
+  an invalid page-1 B-tree header and became unreadable, returning 500s across the app.
+  <br><br>
+  The fix: one shared re-entrant lock, a <code>session()</code> context manager that closes in
+  a <code>finally</code> block, WAL journalling, and automatic quarantine of an unreadable
+  database at startup so a bad file cannot take the whole tool down. Nine regression tests
+  now cover it, including a 120-operation leak check and a four-thread concurrency test that
+  asserts <code>PRAGMA integrity_check</code> afterwards.
+</div>
+
+<h3>Why the assistant is not a language model</h3>
+<p>
+  The in-app chat answers from a curated knowledge base and can query the live database, so
+  the figures it quotes are real. A generative model would require an API key, a network round
+  trip, and per-message cost — and could confidently invent claims about how this system
+  works. A curated base cannot. It says "I do not know" rather than guessing, and the chat
+  header states openly what it is.
+</p>
+
+<h3>Why the theme lives in Sass tokens</h3>
+<p>
+  The palette is authored once as Sass variables and emitted as CSS custom properties.
+  Components reference only the properties, so the entire interface re-skins from one file
+  without a single component being edited. Surface and border steps are <em>derived</em> with
+  <code>color.adjust</code> rather than hand-picked, keeping the elevation ladder even.
+</p>
+
+<div class="warn">
+  <strong>A knowingly-accepted accessibility trade-off.</strong> The palette's success green
+  and warning amber sit at ΔE 3.9 under deuteranopia — for red-green colourblind viewers
+  (~8% of men) the <em>Authentic</em> and <em>Suspicious</em> states are close in hue. The
+  mitigation is that colour is never load-bearing: every verdict carries an icon
+  (✓ / ! / ✕) <em>and</em> its text label, everywhere it appears. All twelve
+  foreground/background pairs were verified programmatically against WCAG.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="data">12. Data model</h2>
+
+<pre><code>scans        scan_id PK · created_at · filename · media_type · verdict
+             risk_level · fake_probability · authenticity_score · confidence
+             faces_detected · file_size_bytes · processing_ms · report_json
+
+identities   name PK · created_at · embedding (BLOB, 128×float32)
+             sample_count · notes
+
+users        id PK · email UNIQUE · name · salt (BLOB)
+             password_hash (BLOB, scrypt) · created_at · last_login
+
+sessions     token PK · user_id FK → users(id) ON DELETE CASCADE
+             created_at · expires_at</code></pre>
+
+<p>
+  Full reports are stored as JSON so the schema does not have to model every nested detail.
+  Face embeddings are stripped before persistence — they are large and meaningful only during
+  the request that produced them.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="api">13. API reference</h2>
+
+<p>Interactive documentation is generated at <code>/docs</code> while the server runs.</p>
+
+<table>
+  <thead><tr><th style="width:9%">Method</th><th style="width:31%">Route</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST</code></td><td><code>/api/scan</code></td><td>Upload image or video; routes on extension</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/scan/image</code></td><td>Image pipeline explicitly</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/scan/video</code></td><td>Video pipeline, optional <code>max_frames</code></td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/scans</code></td><td>History, with limit / offset / verdict filter</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/scan/{id}</code></td><td>Full stored report</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/api/scan/{id}</code></td><td>Remove a scan</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/stats</code></td><td>Dashboard aggregates and 14-day trend</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/models</code></td><td>Per-model test metrics from training</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/identity/enroll</code></td><td>Add a known face to the gallery</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/identity/match</code></td><td>Identify faces + deepfake verdict together</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/identities</code></td><td>List enrolled identities</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/auth/signup</code> · <code>/login</code> · <code>/logout</code></td><td>Account lifecycle</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current session</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/assistant</code></td><td>Ask the in-app assistant</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/system/info</code></td><td>Loaded models, thresholds, limits</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================================================================== -->
+<h2 id="security">14. Security</h2>
+
+<table>
+  <thead><tr><th style="width:30%">Measure</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td>Password storage</td><td><code>scrypt</code> (n=2¹⁴, r=8, p=1) with a per-account 16-byte random salt, 64-byte derived key</td></tr>
+    <tr><td>Session tokens</td><td><code>secrets.token_urlsafe(32)</code>, stored server-side with a 14-day expiry</td></tr>
+    <tr><td>Token transport</td><td><strong>HttpOnly cookie</strong> — unreadable from JavaScript, so an XSS bug cannot exfiltrate it</td></tr>
+    <tr><td>Account enumeration</td><td>Unknown email and wrong password hash identically, take the same time, and return the same message</td></tr>
+    <tr><td>Timing comparison</td><td><code>hmac.compare_digest</code> for hash comparison</td></tr>
+    <tr><td>DoS surface</td><td>Passwords capped at 200 characters — unbounded input into scrypt is an attack vector</td></tr>
+    <tr><td>Upload validation</td><td>Extension allowlist, 200 MB cap, empty-file rejection, decode verification</td></tr>
+    <tr><td>Path safety</td><td>Uploaded filenames are never trusted as paths; storage names are UUID-generated</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <strong>Scope statement.</strong> This is real authentication for a locally-run tool, not a
+  production identity system. It has no email verification, no password reset, no rate
+  limiting, no OAuth and no 2FA. It should not be exposed to the public internet as-is.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="testing">15. Testing</h2>
+
+<p><strong>203 automated tests</strong>, all passing, executable with <code>pytest backend/tests -q</code>.</p>
+
+<table>
+  <thead><tr><th style="width:26%">Suite</th><th style="width:10%">Tests</th><th>Coverage</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_core.py</code></td><td>54</td><td>Verdict thresholds, face detection, cropping, embeddings, tracking, ONNX ensemble, CAM bounds, forensics</td></tr>
+    <tr><td><code>test_auth.py</code></td><td>40</td><td>Hashing, salting, enumeration resistance, timing equivalence, session expiry, endpoint behaviour</td></tr>
+    <tr><td><code>test_assistant.py</code></td><td>37</td><td>Intent routing across 17 topics, refusal on unknown questions, live-data accuracy</td></tr>
+    <tr><td><code>test_pipeline_video.py</code></td><td>37</td><td>Image and video pipelines end to end, edge cases, database round-trips</td></tr>
+    <tr><td><code>test_api.py</code></td><td>26</td><td>Every HTTP endpoint, error handling, upload cleanup, regression tests</td></tr>
+    <tr><td><code>test_db_session.py</code></td><td>9</td><td>Connection closure, leak detection, concurrent writes, corruption recovery</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The suite passes with or without trained models present:
+  <code>backend/tools/make_dummy_model.py</code> builds a structurally identical placeholder so
+  every code path is exercised. That placeholder is flagged <code>"dummy": true</code> in the
+  manifest and surfaced as a warning in the UI, so it can never be mistaken for a trained model.
+</p>
+
+<p>
+  Several tests exist specifically because a real defect occurred: the video-upload 500, the
+  unbounded upload directory, the oversized previews, and the database connection leak each
+  have a dedicated regression test naming the failure it prevents.
+</p>
+
+<!-- ==================================================================== -->
+<h2 id="structure">16. Project structure</h2>
+
+<pre><code>START.bat                       one-click launcher (creates venv, installs, builds, runs)
+requirements.txt
+notebooks/OmniGuard_Training.ipynb    ← run this on Colab
+training/train.py               575 lines — the actual training code
+tools/
+  build_notebook.py             regenerates the notebook from train.py
+  fetch_fonts.py                vendors Space Grotesk + Inter locally
+  extract_hero_frames.py        video → JPEG sequence for the scroll animation
+backend/
+  main.py           476   FastAPI routes, lifespan, static serving
+  assistant.py      604   curated knowledge base + live-data answers
+  database.py       284   SQLite sessions, scans, identities, corruption recovery
+  detector.py       232   ONNX ensemble + CAM heatmaps
+  auth.py           227   accounts, scrypt hashing, sessions
+  forensics.py      236   EXIF · ELA · C2PA
+  video.py          213   frame sampling, tracking, temporal aggregation
+  faces.py          180   YuNet detection, SFace embeddings, tracker
+  pipeline.py       155   image analysis orchestration
+  config.py          70   every tunable number
+  models/                 ONNX models (3 classifiers + YuNet + SFace)
+  tests/                  203 tests across 6 suites
+frontend/
+  src/                    34 source files — pages, components, hooks, Sass tokens
+  public/                 logo, self-hosted fonts, hero frame sequence, this document</code></pre>
+
+<!-- ==================================================================== -->
+<h2 id="limits">17. Limitations</h2>
+
+<p>These are real, and stating them up front is more defensible than being caught out by them.</p>
+
+<div class="card">
+  <ul style="margin:0;padding-left:20px">
+    <li style="margin:.5em 0"><strong>It detects face-based forgery.</strong> Trained on FaceForensics++ face crops, so it is strong on face swaps and AI-generated faces. It is <em>not</em> a general "was this made by AI" detector — a synthetic landscape is outside its training distribution.</li>
+    <li style="margin:.5em 0"><strong>No-face images fall back to whole-frame analysis</strong>, which is markedly less reliable. The report states this whenever it happens.</li>
+    <li style="margin:.5em 0"><strong>Accuracy is measured on a held-out split of the same dataset.</strong> Cross-dataset generalisation — training on FaceForensics++ and testing on Celeb-DF — is the harder benchmark and is not claimed here.</li>
+    <li style="margin:.5em 0"><strong>Heavy compression, low resolution and small faces</strong> all degrade the signal. Faces below 48 pixels are rejected rather than guessed at.</li>
+    <li style="margin:.5em 0"><strong>C2PA is a presence check</strong>, not signature validation against a trust list.</li>
+    <li style="margin:.5em 0"><strong>Error Level Analysis is weak</strong> on PNGs and on heavily re-compressed images.</li>
+    <li style="margin:.5em 0"><strong>Audio, text and document detection are not built.</strong> They are labelled as such in the interface rather than stubbed with fake output.</li>
+  </ul>
+</div>
+
+<div class="note">
+  <strong>The honest framing.</strong> A verdict is <em>evidence, not proof</em>. It belongs
+  as one input to a human decision, never as a replacement for one. A "Suspicious" result
+  means <em>look closer</em> — it is not an accusation.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="running">18. Running it</h2>
+
+<h3>Start the application</h3>
+<p>Double-click <code>START.bat</code>. It creates the Python environment, installs dependencies, downloads the face models, builds the dashboard, and opens <code>http://127.0.0.1:8000</code>. Every subsequent run is immediate.</p>
+
+<h3>Train the models (once, ~50 minutes, unattended)</h3>
+<pre><code>1.  colab.research.google.com → File → Upload notebook
+2.  Upload notebooks/OmniGuard_Training.ipynb
+3.  Runtime → Change runtime type → T4 GPU → Save
+4.  Runtime → Run all
+5.  Unzip omniguard_models.zip into backend/models/
+6.  Run START.bat again</code></pre>
+
+<p>No Kaggle account, no dataset request forms, no API tokens.</p>
+
+<h3>Run the tests</h3>
+<pre><code>.venv\Scripts\python.exe -m pytest backend/tests -q</code></pre>
+
+<h3>Adjust the model</h3>
+<pre><code>python train.py --epochs 5 --batch-size 32 --img-size 299 --n-train 140000</code></pre>
+<p>Detection thresholds, crop margin, frame budget and upload limits all live in <code>backend/config.py</code>.</p>
+
+<!-- ==================================================================== -->
+<h2 id="future">19. Future work</h2>
+
+<table>
+  <thead><tr><th style="width:30%">Direction</th><th>What it involves</th></tr></thead>
+  <tbody>
+    <tr><td>Cross-dataset validation</td><td>Train on FaceForensics++, test on Celeb-DF. This is the benchmark that reveals whether a detector generalises or has memorised one generator.</td></tr>
+    <tr><td>Audio deepfake detection</td><td>A CNN over mel-spectrograms trained on ASVspoof or WaveFake. A separate model and training run; the pipeline is modular enough to accept it.</td></tr>
+    <tr><td>Full C2PA validation</td><td>Parse the manifest and verify its signature chain against a trust list, rather than only detecting presence.</td></tr>
+    <tr><td>Real-time camera analysis</td><td>The inference path is already fast enough on CPU; this needs the capture and streaming layer.</td></tr>
+    <tr><td>Vision transformers</td><td>Adding a ViT to the ensemble would broaden the set of artifacts covered, at meaningful inference cost.</td></tr>
+    <tr><td>Model distillation</td><td>Compress the ensemble into a single student network for lower-power devices.</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  <p style="margin:0">
+    <strong>OmniGuard AI</strong> — deepfake and AI-generated media detection.
+    Built with PyTorch, timm, ONNX Runtime, OpenCV, FastAPI, SQLite, React, Vite, Tailwind, Sass and GSAP.
+    Models fine-tuned on FaceForensics++.
+  </p>
+  <p style="margin:.6em 0 0">
+    A verdict is evidence, not proof.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

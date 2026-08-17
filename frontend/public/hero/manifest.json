@@ -1,0 +1,11 @@
+{
+  "frames": 120,
+  "width": 1024,
+  "height": 576,
+  "pattern": "/hero/frame_%04d.jpg",
+  "source_fps": 24.0,
+  "duration_sec": 10.0,
+  "quality": 76,
+  "stride": 2,
+  "total_bytes": 6407610
+}

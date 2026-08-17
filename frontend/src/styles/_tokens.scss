@@ -1,0 +1,184 @@
+// ===========================================================================
+//  STARK QUANTUM — design tokens
+//
+//  The palette is authored here as Sass variables and a map (so it can be
+//  iterated, validated and reused in mixins), then emitted as CSS custom
+//  properties on :root. Components reference the custom properties only, which
+//  is what lets the entire interface be re-skinned from this one file.
+//
+//  Dark-only by design: this is a forensics console, not a document reader.
+// ===========================================================================
+
+@use 'sass:color';
+@use 'sass:map';
+@use 'sass:math';
+
+/// Round a colour's channels to integers so Sass emits clean hex rather than
+/// `rgb(6.147%, 10.617%, 24.029%)`. Purely cosmetic for the compiled output,
+/// but it keeps the tokens readable and diffable.
+@function solid($c) {
+  @return rgb(
+    math.round(color.channel($c, 'red', $space: rgb)),
+    math.round(color.channel($c, 'green', $space: rgb)),
+    math.round(color.channel($c, 'blue', $space: rgb))
+  );
+}
+
+// ---------------------------------------------------------------- raw palette
+$deep-void:      #030712;   // primary background — near-black blue
+$obsidian-glass: #0B132B;   // card / surface
+$cyber-cyan:     #00F0FF;   // primary accent, brand
+$neon-lime:      #39FF14;   // success / authentic
+$plasma-amber:   #FFB703;   // warning / suspicious
+$neon-crimson:   #FF3B5C;   // critical / fake  (added: the source palette had
+                            // no red, and the fake verdict needs one)
+$titanium-steel: #E2E8F0;   // primary type
+$muted-slate:    #94A3B8;   // secondary type
+$quantum-grid:   #1E293B;   // borders, dividers
+
+$palette: (
+  'void':     $deep-void,
+  'glass':    $obsidian-glass,
+  'cyan':     $cyber-cyan,
+  'lime':     $neon-lime,
+  'amber':    $plasma-amber,
+  'crimson':  $neon-crimson,
+  'steel':    $titanium-steel,
+  'slate':    $muted-slate,
+  'grid':     $quantum-grid,
+);
+
+@function stark($name) {
+  @if not map.has-key($palette, $name) {
+    @error 'Unknown Stark Quantum colour: #{$name}';
+  }
+  @return map.get($palette, $name);
+}
+
+// -------------------------------------------------------------- derived steps
+// Surfaces step up from Obsidian Glass rather than being picked by eye, so the
+// elevation ladder stays even.
+$surface-2: solid(color.adjust($obsidian-glass, $lightness: 4.5%));
+$surface-3: solid(color.adjust($obsidian-glass, $lightness: 9%));
+$border-bright: solid(color.adjust($quantum-grid, $lightness: 12%));
+
+// Cyan is a very light hue (≈14:1 on the void), so anything sitting ON it must
+// use dark ink. Getting this backwards is the classic neon-palette mistake.
+$on-accent: $deep-void;
+
+// -------------------------------------------------------------------- emission
+:root {
+  color-scheme: dark;
+
+  // surfaces
+  --plane:          #{$deep-void};
+  --surface-1:      #{$obsidian-glass};
+  --surface-2:      #{$surface-2};
+  --surface-3:      #{$surface-3};
+  --border:         #{rgba($quantum-grid, 0.9)};
+  --border-bright:  #{$border-bright};
+
+  // ink
+  --ink:            #{$titanium-steel};
+  --ink-2:          #{$muted-slate};
+  --ink-muted:      #{solid(color.adjust($muted-slate, $lightness: -12%))};
+  --on-accent:      #{$on-accent};
+
+  // brand
+  --brand:          #{$cyber-cyan};
+  --brand-2:        #{solid(color.adjust($cyber-cyan, $lightness: -28%))};
+  --brand-deep:     #{solid(color.adjust($cyber-cyan, $lightness: -40%))};
+  --accent:         #{$cyber-cyan};
+
+  // status — always paired with an icon and a text label, never colour alone
+  --good:           #{$neon-lime};
+  --warning:        #{$plasma-amber};
+  --critical:       #{$neon-crimson};
+
+  // chart chrome
+  --grid:           #{rgba($quantum-grid, 0.75)};
+  --axis:           #{rgba($titanium-steel, 0.16)};
+
+  // glows
+  --glow-cyan:      #{rgba($cyber-cyan, 0.32)};
+  --glow-lime:      #{rgba($neon-lime, 0.28)};
+  --glow-crimson:   #{rgba($neon-crimson, 0.30)};
+
+  // type
+  --font-display: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+// ---------------------------------------------------------------------- mixins
+
+/// Outer glow plus a matching inset rim — the two together are what read as
+/// "lit from within" rather than "drop shadow in a bright colour".
+@mixin glow($colour, $spread: 24px, $alpha: 0.30) {
+  box-shadow:
+    0 0 $spread rgba($colour, $alpha),
+    inset 0 0 0 1px rgba($colour, 0.28);
+}
+
+/// Text that glows without losing legibility. The shadow is wide and faint;
+/// a tight bright shadow would smear the glyph edges.
+@mixin text-glow($colour, $spread: 26px, $alpha: 0.35) {
+  text-shadow: 0 0 $spread rgba($colour, $alpha);
+}
+
+/// Frosted panel. Falls back to a solid surface where backdrop-filter is
+/// unsupported, so the layout never depends on it.
+@mixin glass($tint: $obsidian-glass, $alpha: 0.72, $blur: 14px) {
+  background: rgba($tint, $alpha);
+  border: 1px solid var(--border);
+
+  @supports (backdrop-filter: blur(1px)) {
+    backdrop-filter: blur($blur) saturate(140%);
+  }
+}
+
+/// Liquid glass — a thicker, wetter version of `glass`.
+///
+/// Three layers make it read as glass rather than as a translucent rectangle:
+///   1. a vertical tint gradient, so the pane catches light unevenly
+///   2. a heavy backdrop blur plus saturation lift, which bends whatever is
+///      behind it instead of merely dimming it
+///   3. a bright inset line on the top edge and a dark one on the bottom —
+///      the specular highlight that sells the thickness
+///
+/// The tint stays at ~0.62 alpha deliberately. Thinner looks glassier but
+/// starts letting background detail bleed through the text; this is the point
+/// where body copy still holds its contrast.
+@mixin liquid-glass($tint: $obsidian-glass, $alpha: 0.62, $blur: 26px) {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(color.adjust($tint, $lightness: 8%), $alpha + 0.06) 0%,
+      rgba($tint, $alpha) 42%,
+      rgba(color.adjust($tint, $lightness: -3%), $alpha + 0.04) 100%
+    );
+  border: 1px solid rgba(226, 232, 240, 0.10);
+  box-shadow:
+    0 24px 60px -20px rgba(0, 0, 0, 0.85),
+    0 0 40px -22px rgba(0, 240, 255, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.35);
+
+  @supports (backdrop-filter: blur(1px)) {
+    backdrop-filter: blur($blur) saturate(180%);
+    -webkit-backdrop-filter: blur($blur) saturate(180%);
+  }
+
+  // Without backdrop-filter the pane would be see-through with no blur, so
+  // fall back to a near-solid surface and keep the text readable.
+  @supports not (backdrop-filter: blur(1px)) {
+    background: rgba($tint, 0.97);
+  }
+}
+
+/// Clip a gradient into the glyphs themselves.
+@mixin gradient-text($from, $to) {
+  background: linear-gradient(120deg, $from, $to);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}

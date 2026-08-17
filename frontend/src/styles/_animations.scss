@@ -1,0 +1,314 @@
+// ===========================================================================
+//  Motion layer.
+//
+//  Every animation here moves opacity and transform only — the two properties
+//  the compositor can handle without re-laying-out the page. That matters on
+//  the 2-core machine this is built for. Nothing animates width, height or top.
+//
+//  All of it collapses to nothing under prefers-reduced-motion (end of file).
+// ===========================================================================
+
+@use 'sass:map';
+@use 'tokens' as t;
+
+// Shared easing. `out-back` overshoots slightly, which is what makes a widget
+// feel like it *lands* rather than merely arrives.
+$ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+$ease-out-back:  cubic-bezier(0.34, 1.4, 0.64, 1);
+
+// --------------------------------------------------------------- primitives
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.pulse-soft { animation: pulse-soft 1.6s ease-in-out infinite; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.28s ease-out both; }
+
+// ------------------------------------------------------------------ reveals
+// Panels and cards, offset by --i so a group cascades instead of popping.
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(14px) scale(0.995); }
+  to   { opacity: 1; transform: none; }
+}
+.reveal {
+  animation: reveal-up 0.42s $ease-out-quint both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.page-enter { animation: page-in 0.34s $ease-out-quint both; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+.fade-in {
+  animation: fade-in 0.4s ease-out both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+.slide-in-left {
+  animation: slide-in-left 0.32s ease-out both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.9) translateY(8px); }
+  60%  { transform: scale(1.015) translateY(0); }
+  100% { opacity: 1; transform: none; }
+}
+.pop-in { animation: pop-in 0.26s $ease-out-back both; }
+
+// ---------------------------------------------------- terminal letter reveal
+// Headline characters rising out of a mask, staggered per glyph. Reads like a
+// console drawing itself, which is the intent.
+@keyframes letter-up {
+  from { opacity: 0; transform: translateY(0.6em); }
+  to   { opacity: 1; transform: none; }
+}
+.letter-reveal {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+
+  > span {
+    display: inline-block;
+    animation: letter-up 0.5s $ease-out-quint both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+    white-space: pre;   // preserves the spaces between words
+  }
+}
+
+// ------------------------------------------------------------------- chrome
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.bubble-in { animation: bubble-in 0.26s $ease-out-quint both; }
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30%           { opacity: 1;    transform: translateY(-3px); }
+}
+.typing-dot { animation: typing-dot 1.1s ease-in-out infinite; }
+
+@keyframes halo {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.55); }
+  100% { box-shadow: 0 0 0 16px rgba(0, 240, 255, 0); }
+}
+.halo { animation: halo 2.2s ease-out 3; }
+
+@keyframes shimmer {
+  from { background-position: -420px 0; }
+  to   { background-position: 420px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg,
+    var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 420px 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+
+// Slow sweep of light across a gradient headline.
+@keyframes headline-sweep {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.headline-animated {
+  background: linear-gradient(120deg,
+    #{t.stark('steel')} 0%,
+    #{t.stark('cyan')} 30%,
+    #{t.stark('steel')} 60%,
+    #{t.stark('cyan')} 100%);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: headline-sweep 7s linear infinite;
+}
+
+// Breathing glow for live/processing indicators.
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px  rgba(57, 255, 20, 0.35); }
+  50%      { box-shadow: 0 0 18px rgba(57, 255, 20, 0.75); }
+}
+.glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+
+// Soft beacon levels. The bright step is deliberately modest — a wide, faint
+// bloom reads as "lit", whereas a tight bright one reads as a hard blink.
+$sos-rest: 0 0 6px -3px currentColor;
+$sos-dot:  0 0 15px -4px currentColor;
+$sos-dash: 0 0 20px -4px currentColor;
+
+/* ---------------------------------------------------------------------------
+   SOS beacon glow.
+
+   Keeps the morse rhythm — · · ·  — — —  · · ·  then a rest — but each pulse
+   swells and sinks instead of switching. Every keyframe is a single point
+   rather than a pair, so CSS interpolates across the whole gap; combined with
+   ease-in-out that gives the slow rise and fall. Dashes get a plateau (two
+   keyframes at the same level) so they read as longer than the dots.
+
+   The icon's own colour is inherited via currentColor, so each beacon
+   signals in whatever accent its card uses.
+
+   9s cycle, so the whole thing is unhurried.
+--------------------------------------------------------------------------- */
+@keyframes sos-beacon {
+  0%   { box-shadow: $sos-rest; }
+
+  /* S — three dots */
+  3%   { box-shadow: $sos-dot; }
+  6%   { box-shadow: $sos-rest; }
+  9%   { box-shadow: $sos-dot; }
+  12%  { box-shadow: $sos-rest; }
+  15%  { box-shadow: $sos-dot; }
+  19%  { box-shadow: $sos-rest; }
+
+  /* O — three dashes, each held briefly at full */
+  24%  { box-shadow: $sos-dash; }
+  29%  { box-shadow: $sos-dash; }
+  32%  { box-shadow: $sos-rest; }
+  34%  { box-shadow: $sos-dash; }
+  39%  { box-shadow: $sos-dash; }
+  42%  { box-shadow: $sos-rest; }
+  44%  { box-shadow: $sos-dash; }
+  49%  { box-shadow: $sos-dash; }
+  53%  { box-shadow: $sos-rest; }
+
+  /* S — three dots */
+  58%  { box-shadow: $sos-dot; }
+  61%  { box-shadow: $sos-rest; }
+  64%  { box-shadow: $sos-dot; }
+  67%  { box-shadow: $sos-rest; }
+  70%  { box-shadow: $sos-dot; }
+
+  /* long rest before the next call */
+  74%, 100% { box-shadow: $sos-rest; }
+}
+
+// box-shadow is animated directly rather than through a registered custom
+// property: @property has no reliable @supports test, so a fallback could not
+// be targeted correctly.
+.sos-glow {
+  animation: sos-beacon 9s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.7s);   // cards signal out of phase
+  box-shadow: $sos-rest;
+}
+
+/* ---------------------------------------------------------------------------
+   Spark sweep.
+
+   A narrow band of light travelling left to right across a button, forever —
+   the same whether hovered or not, so the control reads as "live" rather than
+   only responding to a pointer.
+
+   Two layers: a soft wide streak that does the glowing, and a thin bright core
+   that reads as the spark itself. The core runs slightly ahead, which is what
+   makes it look like a moving highlight rather than a sliding rectangle.
+
+   `overflow: hidden` keeps the streak inside the pill; `isolation: isolate`
+   stops the pseudo-elements escaping into a parent's stacking context.
+--------------------------------------------------------------------------- */
+@keyframes spark-travel {
+  0%   { transform: translateX(-140%) skewX(-18deg); }
+  100% { transform: translateX(420%)  skewX(-18deg); }
+}
+
+.spark-sweep {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+
+  // Label and icons must sit above both light layers.
+  > * { position: relative; z-index: 2; }
+
+  // soft wide streak
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -40%;
+    bottom: -40%;
+    left: 0;
+    pointer-events: none;
+    z-index: 1;
+    animation: spark-travel 2.8s linear infinite;
+  }
+
+  &::before {
+    width: 26%;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.42),
+      transparent);
+    filter: blur(7px);
+  }
+
+  // thin bright core, a beat ahead of the streak
+  &::after {
+    width: 7%;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.92),
+      transparent);
+    filter: blur(1.5px);
+    animation-delay: 0.09s;
+  }
+}
+
+.draw-arc { transition: stroke-dasharray 0.9s $ease-out-quint; }
+
+// ------------------------------------------------------------- interactions
+.lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 34px -14px rgba(0, 0, 0, 0.8),
+      0 0 22px -8px rgba(0, 240, 255, 0.35);
+    border-color: rgba(0, 240, 255, 0.35);
+  }
+}
+
+.press {
+  transition: transform 0.12s ease;
+  &:active { transform: scale(0.97); }
+}
+
+.row-hover {
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  &:hover { background: rgba(0, 240, 255, 0.05); }
+}
+
+// ------------------------------------------------------------ accessibility
+@media (prefers-reduced-motion: reduce) {
+  .spin, .pulse-soft, .rise, .reveal, .page-enter, .fade-in, .slide-in-left,
+  .pop-in, .bubble-in, .typing-dot, .halo, .shimmer, .glow-pulse, .sos-glow,
+  .headline-animated, .letter-reveal > span,
+  .spark-sweep::before, .spark-sweep::after {
+    animation: none !important;
+  }
+
+  .draw-arc { transition: none !important; }
+  .lift:hover { transform: none; }
+  .press:active { transform: none; }
+
+  * { scroll-behavior: auto !important; }
+}

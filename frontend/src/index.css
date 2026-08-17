@@ -1,0 +1,4 @@
+/* Tailwind only.
+   The design system lives in src/styles/main.scss, imported after this file
+   in main.jsx so its rules land after Tailwind's preflight. */
+@import "tailwindcss";

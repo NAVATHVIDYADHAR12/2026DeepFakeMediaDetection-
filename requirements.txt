@@ -1,0 +1,19 @@
+# OmniGuard AI - backend runtime dependencies.
+#
+# Deliberately small: inference runs through ONNX Runtime, so PyTorch is NOT
+# needed to run the app. Training happens on Colab (see training/train.py),
+# which installs its own heavier stack there.
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # multipart/form-data file uploads
+
+onnxruntime>=1.19         # runs the trained deepfake classifiers on CPU
+opencv-python>=4.10       # YuNet face detection + SFace face recognition
+numpy>=1.26
+pillow>=10.3              # EXIF metadata and Error Level Analysis
+
+# --- development / testing only ---
+pytest>=8.0
+httpx>=0.27               # required by fastapi.testclient
+onnx>=1.16                # only used by tools/make_dummy_model.py

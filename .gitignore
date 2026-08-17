@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Local scratch space (this project keeps temp on D: because C: is full)
+.tmp/
+.pipcache/
+.npmcache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Runtime data
+backend/data/
+*.corrupt-*.db
+
+# Models are not committed.
+#   - the deepfake classifiers come from the Colab training run
+#   - YuNet and SFace (38 MB) are downloaded automatically by START.bat
+# Keeping them out of git holds the clone at a sane size.
+backend/models/*.onnx
+backend/models/*.npy
+backend/models/manifest.json
+
+# Training artifacts
+out/
+omniguard_models.zip
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
