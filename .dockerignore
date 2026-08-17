@@ -7,8 +7,10 @@ __pycache__/
 **/__pycache__/
 .pytest_cache/
 backend/data/
-backend/models/*.onnx
-backend/models/*.npy
+# The face models are committed and must go into the image; only the
+# training-specific classifiers are excluded.
+backend/models/dummy_testnet*
+backend/models/manifest.json
 backend/tests/
 frontend/node_modules/
 frontend/src/
