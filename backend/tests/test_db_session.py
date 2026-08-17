@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 
 import numpy as np
 import pytest
@@ -18,8 +19,23 @@ import auth
 import database as db
 
 
-class TestSessionClosesConnections:
-    def test_connection_is_closed_on_success(self, monkeypatch):
+class TestSharedConnection:
+    """The connection is deliberately long-lived.
+
+    Two earlier designs were both wrong: one leaked a handle per query and
+    corrupted the database; the other opened and closed per query, which made
+    every write pay for a WAL checkpoint (~700 ms measured). These tests pin
+    the behaviour that avoids both.
+    """
+
+    def test_the_same_connection_is_reused(self):
+        with db.session() as a:
+            first = a
+        with db.session() as b:
+            assert b is first, "each call opened a new connection"
+
+    def test_many_operations_open_at_most_one_connection(self, monkeypatch):
+        """The original failure mode was handles accumulating per query."""
         opened = []
         real_connect = sqlite3.connect
 
@@ -28,48 +44,12 @@ class TestSessionClosesConnections:
             opened.append(conn)
             return conn
 
-        monkeypatch.setattr(sqlite3, "connect", tracking_connect)
-
-        with db.session() as conn:
-            conn.execute("SELECT 1")
-
-        assert len(opened) == 1
-        with pytest.raises(sqlite3.ProgrammingError):
-            opened[0].execute("SELECT 1")      # closed connections raise
-
-    def test_connection_is_closed_when_the_body_raises(self, monkeypatch):
-        opened = []
-        real_connect = sqlite3.connect
-        monkeypatch.setattr(sqlite3, "connect",
-                            lambda *a, **kw: opened.append(real_connect(*a, **kw)) or opened[-1])
-
-        with pytest.raises(ValueError):
-            with db.session():
-                raise ValueError("boom")
-
-        with pytest.raises(sqlite3.ProgrammingError):
-            opened[0].execute("SELECT 1")
-
-    def test_many_operations_leak_nothing(self, monkeypatch):
-        """The actual failure mode: handles accumulating across many calls.
-
-        `Connection.close` is read-only so it cannot be wrapped; instead every
-        connection handed out is collected and probed at the end. A still-open
-        connection answers the query; a closed one raises ProgrammingError.
-        """
-        opened = []
-        real_connect = sqlite3.connect
-
-        def tracking_connect(*a, **kw):
-            conn = real_connect(*a, **kw)
-            opened.append(conn)
-            return conn
-
+        db.close()                       # force a fresh open we can observe
         monkeypatch.setattr(sqlite3, "connect", tracking_connect)
 
         for i in range(40):
             db.save_scan({
-                "scan_id": f"LEAK{i}", "media_type": "image", "filename": f"{i}.jpg",
+                "scan_id": f"REUSE{i}", "media_type": "image", "filename": f"{i}.jpg",
                 "verdict": "AUTHENTIC", "risk_level": "MINIMAL", "fake_probability": 0.1,
                 "authenticity_score": 90.0, "confidence": 0.8, "faces_detected": 1,
                 "file_size_bytes": 10, "processing_ms": 1.0, "faces": [],
@@ -77,20 +57,45 @@ class TestSessionClosesConnections:
             db.stats()
             db.recent_scans(limit=5)
 
-        assert len(opened) >= 120, "expected one connection per operation"
-
-        still_open = []
-        for conn in opened:
-            try:
-                conn.execute("SELECT 1")
-                still_open.append(conn)
-            except sqlite3.ProgrammingError:
-                pass          # closed, as it should be
-
-        assert still_open == [], (
-            f"{len(still_open)} of {len(opened)} connections left open — "
-            f"this is the leak that corrupted the database"
+        assert len(opened) == 1, (
+            f"{len(opened)} connections opened for 120 operations — "
+            f"the connection is not being reused"
         )
+
+    def test_writes_are_fast(self):
+        """Guards the checkpoint-per-query regression.
+
+        Closing the last connection to a WAL database forces a checkpoint. When
+        every query opened and closed its own connection, a single insert cost
+        roughly 700 ms. The bound here is deliberately loose — it is catching a
+        thousandfold regression, not measuring throughput.
+        """
+        report = {
+            "scan_id": "PERF0", "media_type": "image", "filename": "p.jpg",
+            "verdict": "AUTHENTIC", "risk_level": "MINIMAL", "fake_probability": 0.1,
+            "authenticity_score": 90.0, "confidence": 0.8, "faces_detected": 1,
+            "file_size_bytes": 10, "processing_ms": 1.0,
+            "faces": [{"face_id": 1, "crop_preview": "x" * 40_000}],
+        }
+        db.save_scan(report)                       # warm
+
+        start = time.perf_counter()
+        for i in range(20):
+            report["scan_id"] = f"PERF{i}"
+            db.save_scan(report)
+        per_write = (time.perf_counter() - start) / 20 * 1000
+
+        assert per_write < 100, f"{per_write:.0f} ms per write — checkpoint regression"
+
+    def test_commit_happens_on_success(self):
+        db.save_scan({
+            "scan_id": "COMMIT1", "media_type": "image", "filename": "c.jpg",
+            "verdict": "FAKE", "risk_level": "HIGH", "fake_probability": 0.9,
+            "authenticity_score": 10.0, "confidence": 0.8, "faces_detected": 1,
+            "file_size_bytes": 10, "processing_ms": 1.0, "faces": [],
+        })
+        db.close()                                  # drop and reopen
+        assert db.get_scan("COMMIT1") is not None
 
     def test_rollback_on_error_leaves_no_partial_write(self):
         db.save_scan({
@@ -105,6 +110,16 @@ class TestSessionClosesConnections:
                 conn.execute("SELECT * FROM a_table_that_does_not_exist")
 
         assert db.get_scan("ROLLBACK1") is not None, "delete should have rolled back"
+
+    def test_changing_the_database_path_reopens(self, tmp_path, monkeypatch):
+        """Tests swap cfg.DB_PATH per test; the cached connection must follow."""
+        with db.session() as conn:
+            original = conn
+
+        monkeypatch.setattr(db.cfg, "DB_PATH", tmp_path / "other.db")
+        db.init()
+        with db.session() as conn:
+            assert conn is not original
 
 
 class TestSharedLock:

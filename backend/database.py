@@ -50,33 +50,75 @@ CREATE TABLE IF NOT EXISTS identities (
 """
 
 
+# One long-lived connection, reused for every query and guarded by _lock.
+# `_conn_path` records which database it was opened against, so a change to
+# cfg.DB_PATH (tests do this per-test) transparently reopens.
+_conn: sqlite3.Connection | None = None
+_conn_path = None
+
+
+def _connection() -> sqlite3.Connection:
+    """The shared connection, opened on first use."""
+    global _conn, _conn_path
+
+    if _conn is not None and _conn_path == cfg.DB_PATH:
+        return _conn
+
+    if _conn is not None:                      # database path changed
+        try:
+            _conn.close()
+        except sqlite3.Error:
+            pass
+
+    conn = sqlite3.connect(cfg.DB_PATH, check_same_thread=False, timeout=15)
+    conn.row_factory = sqlite3.Row
+    # Applied once per connection rather than once per query.
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    _conn, _conn_path = conn, cfg.DB_PATH
+    return conn
+
+
 @contextmanager
 def session():
-    """Open a connection, commit on success, and ALWAYS close it.
+    """Run a statement against the shared connection, committing on success.
 
-    `with sqlite3.connect(...) as conn` commits but does NOT close — a detail
-    that previously leaked a file handle on every single query. Hundreds of
-    live handles against one file is how the database ended up with a corrupt
-    page-1 header.
+    Two earlier versions of this were both wrong, in opposite directions:
 
-    WAL journalling is enabled because it survives an abrupt process exit far
-    better than the rollback journal, which matters when the server is killed
-    mid-write during development.
+    1. `with sqlite3.connect(...) as conn` commits but does NOT close, so every
+       query leaked a file handle. Hundreds of live handles against one file is
+       how the database once ended up with a corrupt page-1 header.
+
+    2. Opening and closing a connection per query fixed the leak but made every
+       write cost ~700 ms. Closing the *last* connection to a WAL database
+       forces a checkpoint — measured at 391 ms — so each query paid for one.
+
+    Holding exactly one connection avoids both: nothing accumulates, and the
+    checkpoint happens on SQLite's own schedule instead of on every call.
+    The lock still serialises access, which is what `check_same_thread=False`
+    requires.
     """
     with _lock:
-        conn = sqlite3.connect(cfg.DB_PATH, check_same_thread=False, timeout=15)
-        conn.row_factory = sqlite3.Row
+        conn = _connection()
         try:
-            conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("PRAGMA foreign_keys = ON")
             yield conn
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
+
+
+def close() -> None:
+    """Close the shared connection. Used at shutdown and between tests."""
+    global _conn, _conn_path
+    with _lock:
+        if _conn is not None:
+            try:
+                _conn.close()
+            finally:
+                _conn, _conn_path = None, None
 
 
 def _quarantine_unreadable() -> str | None:
@@ -123,6 +165,8 @@ def _quarantine_unreadable() -> str | None:
 
 def init() -> str | None:
     """Create the schema. Returns the quarantined filename if one was moved."""
+    # Release any handle on the old file before the probe tries to rename it.
+    close()
     moved = _quarantine_unreadable()
     with session() as conn:
         conn.executescript(_SCHEMA)

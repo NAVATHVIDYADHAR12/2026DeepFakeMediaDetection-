@@ -46,6 +46,9 @@ def temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db.cfg, "DB_PATH", tmp_path / "test.db")
     db.init()
     yield
+    # The connection is shared and long-lived, so it must be released before
+    # pytest removes the temporary directory it points at.
+    db.close()
 
 
 @pytest.fixture(scope="session")
