@@ -79,7 +79,7 @@ export default function History() {
                       </td>
                       <td className="py-2.5 pr-4" style={{ color: 'var(--ink-muted)' }}>{s.media_type}</td>
                       <td className="py-2.5 pr-4"><VerdictBadge verdict={s.verdict} /></td>
-                      <td className="py-2.5 pr-4 tnum">{s.authenticity_score}%</td>
+                      <td className="py-2.5 pr-4 tnum">{s.authenticity_score != null ? `${s.authenticity_score}%` : "\u2014"}</td>
                       <td className="py-2.5 pr-4 tnum">{s.faces_detected}</td>
                       <td className="py-2.5 pr-4 tnum" style={{ color: 'var(--ink-muted)' }}>
                         {formatBytes(s.file_size_bytes)}

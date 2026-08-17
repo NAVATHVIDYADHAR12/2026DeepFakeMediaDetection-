@@ -10,6 +10,8 @@
  * origin (e.g. https://omniguard-api.onrender.com) and every call is redirected
  * there. Empty by default, which keeps the same-origin behaviour.
  */
+import * as engine from './engine/index.js'
+
 export const API_BASE = (import.meta.env?.VITE_API_BASE ?? '').replace(/\/$/, '')
 
 /** Prefix a path with the configured API origin. */
@@ -38,50 +40,176 @@ async function request(path, options = {}) {
 
 const upload = (path, formData) => request(path, { method: 'POST', body: formData })
 
-export const api = {
-  health: () => request('/api/health'),
-  systemInfo: () => request('/api/system/info'),
-  models: () => request('/api/models'),
+/* ---------------------------------------------------------------------------
+   Backend detection and standalone fallback.
 
-  stats: () => request('/api/stats'),
-  scans: ({ limit = 20, offset = 0, verdict } = {}) => {
-    const q = new URLSearchParams({ limit, offset })
-    if (verdict) q.set('verdict', verdict)
-    return request(`/api/scans?${q}`)
-  },
-  scan: (id) => request(`/api/scan/${id}`),
-  deleteScan: (id) => request(`/api/scan/${id}`, { method: 'DELETE' }),
+   Locally the Python service is there and does everything. On a static host it
+   is not, and rather than showing a dead interface the app falls back to the
+   browser engine: real EXIF, Error Level Analysis, C2PA and history, with the
+   neural verdict honestly reported as unavailable.
+
+   The probe result is cached, so this costs one request per page load rather
+   than one per call.
+--------------------------------------------------------------------------- */
+
+let backendProbe = null
+
+export function resetBackendProbe() { backendProbe = null }
+
+async function backendAvailable() {
+  if (backendProbe) return backendProbe
+
+  backendProbe = (async () => {
+    try {
+      // A short timeout: a sleeping free-tier host should not stall the UI for
+      // 30 seconds before the fallback kicks in.
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 4000)
+      const res = await fetch(apiUrl('/api/health'), {
+        signal: controller.signal,
+        credentials: API_BASE ? 'include' : 'same-origin',
+      })
+      clearTimeout(timer)
+      return res.ok
+    } catch {
+      return false
+    }
+  })()
+
+  return backendProbe
+}
+
+/** Use the server when it is there, the browser engine when it is not. */
+async function viaBackendOr(serverCall, localCall) {
+  if (await backendAvailable()) {
+    try {
+      return await serverCall()
+    } catch (err) {
+      // A transport failure mid-session means the server went away; fall
+      // through rather than surfacing a network error. A real HTTP status is
+      // a genuine answer and is passed on untouched.
+      if (err.status) throw err
+      backendProbe = Promise.resolve(false)
+    }
+  }
+  return localCall()
+}
+
+export const api = {
+  health: () => viaBackendOr(
+    () => request('/api/health'),
+    async () => engine.health(),
+  ),
+
+  systemInfo: () => viaBackendOr(
+    () => request('/api/system/info'),
+    async () => engine.systemInfo(),
+  ),
+
+  models: () => viaBackendOr(
+    () => request('/api/models'),
+    async () => ({ ready: false, engine: 'browser', models: [] }),
+  ),
+
+  stats: () => viaBackendOr(
+    () => request('/api/stats'),
+    () => engine.store.stats(),
+  ),
+
+  scans: (opts = {}) => viaBackendOr(
+    () => {
+      const { limit = 20, offset = 0, verdict } = opts
+      const q = new URLSearchParams({ limit, offset })
+      if (verdict) q.set('verdict', verdict)
+      return request(`/api/scans?${q}`)
+    },
+    async () => ({ scans: await engine.store.recentScans(opts) }),
+  ),
+
+  scan: (id) => viaBackendOr(
+    () => request(`/api/scan/${id}`),
+    async () => {
+      const report = await engine.store.getScan(id)
+      if (!report) {
+        const err = new Error(`No scan with id ${id}`)
+        err.status = 404
+        throw err
+      }
+      return report
+    },
+  ),
+
+  deleteScan: (id) => viaBackendOr(
+    () => request(`/api/scan/${id}`, { method: 'DELETE' }),
+    async () => ({ deleted: await engine.store.deleteScan(id) }),
+  ),
 
   /** Routes to the image or video analyser based on file extension. */
-  analyze: (file) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return upload('/api/scan', fd)
-  },
+  analyze: (file) => viaBackendOr(
+    () => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return upload('/api/scan', fd)
+    },
+    () => engine.analyze(file),
+  ),
 
-  identities: () => request('/api/identities'),
-  enroll: (name, file, notes = '') => {
-    const fd = new FormData()
-    fd.append('name', name)
-    fd.append('file', file)
-    if (notes) fd.append('notes', notes)
-    return upload('/api/identity/enroll', fd)
-  },
-  matchIdentity: (file) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return upload('/api/identity/match', fd)
-  },
-  deleteIdentity: (name) =>
-    request(`/api/identity/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  identities: () => viaBackendOr(
+    () => request('/api/identities'),
+    async () => ({ identities: [], engine: 'browser' }),
+  ),
+
+  enroll: (name, file, notes = '') => viaBackendOr(
+    () => {
+      const fd = new FormData()
+      fd.append('name', name)
+      fd.append('file', file)
+      if (notes) fd.append('notes', notes)
+      return upload('/api/identity/enroll', fd)
+    },
+    async () => {
+      // Face recognition needs the SFace model; there is nothing honest to
+      // return without it.
+      const err = new Error(
+        'Face recognition needs the local service — it uses a face-embedding '
+        + 'model that is not part of this build.'
+      )
+      err.status = 503
+      throw err
+    },
+  ),
+
+  matchIdentity: (file) => viaBackendOr(
+    () => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return upload('/api/identity/match', fd)
+    },
+    async () => {
+      const err = new Error(
+        'Face recognition needs the local service — it uses a face-embedding '
+        + 'model that is not part of this build.'
+      )
+      err.status = 503
+      throw err
+    },
+  ),
+
+  deleteIdentity: (name) => viaBackendOr(
+    () => request(`/api/identity/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    async () => ({ deleted: name }),
+  ),
 }
 
 /** Verdict presentation. Icon + label always accompany the color, so meaning
  *  never rests on hue alone. */
 export const VERDICT = {
-  AUTHENTIC:  { label: 'Authentic',       color: 'var(--good)',     icon: '✓', tone: 'good' },
-  SUSPICIOUS: { label: 'Suspicious',      color: 'var(--warning)',  icon: '!', tone: 'warning' },
+  AUTHENTIC:  { label: 'Authentic',          color: 'var(--good)',     icon: '✓', tone: 'good' },
+  SUSPICIOUS: { label: 'Suspicious',         color: 'var(--warning)',  icon: '!', tone: 'warning' },
   FAKE:       { label: 'Fake / Manipulated', color: 'var(--critical)', icon: '✕', tone: 'critical' },
+  // Forensics ran, but no classifier was available to give a verdict. Shown in
+  // a neutral tone: it is an absence of judgement, not a judgement.
+  UNVERIFIED: { label: 'Not verified',       color: 'var(--ink-muted)', icon: '?', tone: 'muted' },
 }
 
 export const verdictMeta = (v) => VERDICT[v] ?? {

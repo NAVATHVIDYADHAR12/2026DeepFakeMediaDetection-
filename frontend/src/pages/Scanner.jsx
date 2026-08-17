@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { BackendOffline, ModelsMissing, Panel } from '../components/ui.jsx'
+import { StandaloneNotice, ModelsMissing, Panel } from '../components/ui.jsx'
 import UploadZone from '../components/UploadZone.jsx'
 
 const COPY = {
@@ -24,14 +24,14 @@ export default function Scanner({ health }) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      {health?.offline ? <BackendOffline />
+      {health?.engine === 'browser' ? <StandaloneNotice />
         : health && !health.models_loaded ? <ModelsMissing /> : null}
 
       <Panel title={copy.title}>
         <p className="text-[13px] -mt-1 mb-5 leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
           {copy.body}
         </p>
-        <UploadZone disabled={Boolean(health) && !health.models_loaded}
+        <UploadZone disabled={Boolean(health) && !health.models_loaded && health.engine !== 'browser'}
                     onComplete={(report) => navigate(`/report/${report.scan_id}`)} />
       </Panel>
 

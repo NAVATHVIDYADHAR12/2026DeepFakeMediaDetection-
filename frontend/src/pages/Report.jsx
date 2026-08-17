@@ -8,27 +8,37 @@ import { EmptyState, Findings, KeyValue, Panel, Spinner, Timeline, VerdictBadge 
 /** Big headline figure. The number is the deliverable, so it gets the space. */
 function ScoreHero({ report }) {
   const meta = verdictMeta(report.verdict)
+  // A report from the browser engine has no classifier behind it, so the score
+  // is genuinely absent. An em-dash is shown rather than a fabricated number.
+  const scored = report.fake_probability !== null && report.fake_probability !== undefined
+
   return (
     <div className="flex flex-wrap items-center gap-x-12 gap-y-5">
       <div>
         <div className="text-xs mb-1.5" style={{ color: 'var(--ink-muted)' }}>Authenticity Score</div>
         <div className="text-5xl leading-none figure" style={{ color: meta.color }}>
-          {report.authenticity_score}%
+          {scored ? `${report.authenticity_score}%` : '\u2014'}
         </div>
         <div className="text-xs mt-2" style={{ color: meta.color }}>
-          {report.verdict === 'AUTHENTIC' ? 'No manipulation detected' : 'Likely AI-generated or edited'}
+          {!scored ? 'No classifier available'
+            : report.verdict === 'AUTHENTIC' ? 'No manipulation detected'
+            : 'Likely AI-generated or edited'}
         </div>
       </div>
       <div>
         <div className="text-xs mb-1.5" style={{ color: 'var(--ink-muted)' }}>Confidence</div>
-        <div className="text-4xl leading-none figure">{(report.confidence * 100).toFixed(0)}%</div>
+        <div className="text-4xl leading-none figure">
+          {scored ? `${(report.confidence * 100).toFixed(0)}%` : '\u2014'}
+        </div>
         <div className="text-xs mt-2" style={{ color: 'var(--ink-muted)' }}>
-          {report.confidence > 0.7 ? 'Very high' : report.confidence > 0.4 ? 'Moderate' : 'Low — treat with care'}
+          {!scored ? 'Not measured'
+            : report.confidence > 0.7 ? 'Very high'
+            : report.confidence > 0.4 ? 'Moderate' : 'Low \u2014 treat with care'}
         </div>
       </div>
       <div>
         <div className="text-xs mb-1.5" style={{ color: 'var(--ink-muted)' }}>Risk Level</div>
-        <div className="text-4xl leading-none figure">{report.risk_level}</div>
+        <div className="text-4xl leading-none figure">{report.risk_level ?? '\u2014'}</div>
       </div>
       <div>
         <div className="text-xs mb-2" style={{ color: 'var(--ink-muted)' }}>Verdict</div>
@@ -78,26 +88,33 @@ function FaceCard({ face }) {
         )}
 
         <div className="flex-1 min-w-[220px] space-y-3">
-          <div>
-            <div className="flex justify-between text-xs mb-1.5">
-              <span style={{ color: 'var(--ink-muted)' }}>Fake probability</span>
-              <span className="tnum font-semibold" style={{ color: meta.color }}>
-                {(face.fake_probability * 100).toFixed(1)}%
-              </span>
+          {face.fake_probability != null ? (
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span style={{ color: 'var(--ink-muted)' }}>Fake probability</span>
+                <span className="tnum font-semibold" style={{ color: meta.color }}>
+                  {(face.fake_probability * 100).toFixed(1)}%
+                </span>
+              </div>
+              <Meter value={face.fake_probability} color={meta.color} />
             </div>
-            <Meter value={face.fake_probability} color={meta.color} />
-          </div>
+          ) : (
+            <p className="text-xs" style={{ color: 'var(--ink-muted)' }}>
+              No classifier available &mdash; forensic checks only.
+            </p>
+          )}
 
           <KeyValue rows={[
-            ['Model agreement', `${(face.model_agreement * 100).toFixed(0)}%`],
+            ['Model agreement', face.model_agreement != null ? `${(face.model_agreement * 100).toFixed(0)}%` : '\u2014'],
             ['Detection score', face.detection_score != null ? face.detection_score.toFixed(3) : '—'],
             ['Identity vector', face.has_embedding ? 'extracted' : 'unavailable'],
           ]} />
 
-          <div className="pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div className="pt-2 border-t" style={{ borderColor: 'var(--border)' }}
+               hidden={!(face.models ?? []).length}>
             <div className="text-[11px] mb-2" style={{ color: 'var(--ink-muted)' }}>Per-model verdict</div>
             <ul className="space-y-1.5">
-              {face.models.map((m) => (
+              {(face.models ?? []).map((m) => (
                 <li key={m.arch} className="flex items-center gap-2 text-xs">
                   <span className="flex-1 truncate">{m.name}</span>
                   <span className="w-16"><Meter value={m.fake_probability} color={verdictMeta(m.verdict).color} height={4} /></span>
@@ -137,6 +154,16 @@ export default function Report() {
           {report.scan_id}
         </span>
       </div>
+
+      {report.engine === 'browser' && (
+        <div className="panel p-4 rise"
+             style={{ borderColor: 'color-mix(in srgb, var(--warning) 38%, transparent)' }}>
+          <div className="flex items-start gap-3">
+            <span style={{ color: 'var(--warning)' }} aria-hidden="true">&#9888;</span>
+            <p className="text-[13px]" style={{ color: 'var(--ink-2)' }}>{report.engine_note}</p>
+          </div>
+        </div>
+      )}
 
       <Panel index={0}><ScoreHero report={report} /></Panel>
 
@@ -195,7 +222,7 @@ export default function Report() {
               ] : [
                 ['Faces detected', report.faces_detected],
               ]),
-              ['Processing time', `${report.processing_ms.toFixed(0)} ms`],
+              ['Processing time', `${(report.processing_ms ?? 0).toFixed(0)} ms`],
             ]} />
           </Panel>
         </div>

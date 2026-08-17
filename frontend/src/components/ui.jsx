@@ -123,31 +123,39 @@ export function ModelsMissing() {
   )
 }
 
-/** Shown when the API cannot be reached at all — the normal state for a
- *  static frontend-only deployment, where there is no backend to talk to. */
-export function BackendOffline() {
+/**
+ * Shown when the Python service is not reachable and the app is running on its
+ * own. It is not an error state: metadata, compression and provenance checks
+ * all still run in the browser. Only the neural verdict is missing, and the
+ * notice says exactly that rather than implying nothing works.
+ */
+export function StandaloneNotice() {
   return (
     <div className="panel p-6 rise"
-         style={{ borderColor: 'color-mix(in srgb, var(--critical) 40%, transparent)' }}>
+         style={{ borderColor: 'color-mix(in srgb, var(--warning) 38%, transparent)' }}>
       <div className="flex items-start gap-3">
-        <span className="text-lg" style={{ color: 'var(--critical)' }} aria-hidden="true">⚠</span>
+        <span className="text-lg" style={{ color: 'var(--warning)' }} aria-hidden="true">◐</span>
         <div>
-          <h3 className="font-semibold mb-1">Detection backend not connected</h3>
+          <h3 className="font-semibold mb-1">Standalone mode — analysis runs in your browser</h3>
           <p className="text-sm mb-3" style={{ color: 'var(--ink-2)' }}>
-            This is the interface only. Analysis runs on a local Python service that
-            performs the model inference — it is not part of a static web deployment.
+            No detection service is connected, so the app is using its built-in engine.
+            These checks are real and computed from the file itself:
           </p>
+          <ul className="text-sm space-y-1.5 ml-1 mb-3" style={{ color: 'var(--ink-2)' }}>
+            <li>✓ EXIF metadata — camera, editing software, GPS, stripping</li>
+            <li>✓ Error Level Analysis — compression inconsistency</li>
+            <li>✓ C2PA provenance — content credential detection</li>
+            <li>✓ Scan history, stored locally in your browser</li>
+          </ul>
           <p className="text-sm mb-2" style={{ color: 'var(--ink-2)' }}>
-            To run the full system, clone the repository and launch it locally:
+            What is <strong>not</strong> available is the neural verdict: that needs the
+            trained CNN ensemble, which is far too large to ship to a browser. Reports are
+            marked <em>Not verified</em> rather than being given a guessed score.
           </p>
-          <ol className="text-sm space-y-1.5 list-decimal ml-4" style={{ color: 'var(--ink-2)' }}>
-            <li>Clone <code className="px-1 rounded" style={{ background: 'var(--surface-2)' }}>DeepFakeMediaDetection2026</code></li>
-            <li>Run <code className="px-1 rounded" style={{ background: 'var(--surface-2)' }}>START.bat</code></li>
-            <li>Train the models once via the Colab notebook</li>
-          </ol>
-          <p className="text-[12px] mt-3" style={{ color: 'var(--ink-muted)' }}>
-            Everything else on this site — the landing page, the documentation and the
-            full interface — works without it.
+          <p className="text-[12px]" style={{ color: 'var(--ink-muted)' }}>
+            For full detection — deepfake scoring, heatmaps, face recognition and video —
+            clone the repository and run <code className="px-1 rounded"
+            style={{ background: 'var(--surface-2)' }}>START.bat</code>.
           </p>
         </div>
       </div>

@@ -19,6 +19,7 @@ export default function System() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Detection Engine">
           <KeyValue rows={[
+            ['Engine', info.engine === 'browser' ? 'browser (standalone)' : 'local Python service'],
             ['Classifiers loaded', d.ready ? `${d.model_count} model(s)` : 'none'],
             ['Face analyzer', info.face_analyzer_ready ? 'ready (YuNet + SFace)' : 'unavailable'],
             ['Trained on', d.trained_on ?? '—'],

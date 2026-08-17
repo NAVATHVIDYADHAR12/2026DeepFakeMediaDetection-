@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { api, timeAgo } from '../api.js'
 import { Donut } from '../components/charts.jsx'
-import { BackendOffline, EmptyState, ModelsMissing, Panel, Spinner, StatTile, VerdictBadge } from '../components/ui.jsx'
+import { StandaloneNotice, EmptyState, ModelsMissing, Panel, Spinner, StatTile, VerdictBadge } from '../components/ui.jsx'
 import UploadZone from '../components/UploadZone.jsx'
 
 export default function Dashboard({ health }) {
@@ -22,8 +22,8 @@ export default function Dashboard({ health }) {
 
   if (error) {
     return (
-      <EmptyState icon="⚠" title="Cannot reach the backend"
-                  body={`${error} — check that the API server is running on port 8000.`} />
+      <EmptyState icon="⚠" title="Could not load the dashboard"
+                  body={error} />
     )
   }
   if (!stats) return <Spinner label="Loading dashboard…" />
@@ -43,7 +43,7 @@ export default function Dashboard({ health }) {
 
   return (
     <div className="space-y-5">
-      {health?.offline ? <BackendOffline />
+      {health?.engine === 'browser' ? <StandaloneNotice />
         : health && !health.models_loaded ? <ModelsMissing /> : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
@@ -51,7 +51,7 @@ export default function Dashboard({ health }) {
           <p className="text-[13px] mb-4 -mt-1" style={{ color: 'var(--ink-muted)' }}>
             Upload an image or video to analyse its authenticity.
           </p>
-          <UploadZone compact disabled={Boolean(health) && !health.models_loaded}
+          <UploadZone compact disabled={Boolean(health) && !health.models_loaded && health.engine !== 'browser'}
                       onComplete={(report) => navigate(`/report/${report.scan_id}`)} />
         </Panel>
 
@@ -135,12 +135,12 @@ export default function Dashboard({ health }) {
               <div className="text-xs mb-1" style={{ color: 'var(--ink-muted)' }}>Authenticity Score</div>
               <div className="text-2xl figure"
                    style={{ color: last.verdict === 'AUTHENTIC' ? 'var(--good)' : last.verdict === 'FAKE' ? 'var(--critical)' : 'var(--warning)' }}>
-                {last.authenticity_score}%
+                {last.authenticity_score != null ? `${last.authenticity_score}%` : "\u2014"}
               </div>
             </div>
             <div>
               <div className="text-xs mb-1" style={{ color: 'var(--ink-muted)' }}>Confidence</div>
-              <div className="text-2xl figure">{((last.confidence ?? 0) * 100).toFixed(0)}%</div>
+              <div className="text-2xl figure">{last.confidence != null ? `${(last.confidence * 100).toFixed(0)}%` : "\u2014"}</div>
             </div>
             <div>
               <div className="text-xs mb-1" style={{ color: 'var(--ink-muted)' }}>Risk Level</div>

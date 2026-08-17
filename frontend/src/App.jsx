@@ -138,9 +138,11 @@ export default function App() {
     // `offline` is distinct from null: null means "not asked yet", offline
     // means the request was made and the backend is not there. The UI needs
     // to tell those apart to show the right message on a static deploy.
+    // api.health() already falls back to the browser engine, which reports
+    // engine:'browser'. A rejection here means something unexpected broke.
     const poll = () => api.health()
       .then((h) => alive && setHealth(h))
-      .catch(() => alive && setHealth({ offline: true, models_loaded: false, model_count: 0 }))
+      .catch(() => alive && setHealth({ engine: 'browser', models_loaded: false, model_count: 0 }))
     poll()
     const id = setInterval(poll, 15000)
     return () => { alive = false; clearInterval(id) }
