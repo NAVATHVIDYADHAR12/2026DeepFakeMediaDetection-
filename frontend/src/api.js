@@ -1,13 +1,25 @@
 /**
  * Thin wrapper over the backend REST API.
  *
- * In development Vite proxies /api to the FastAPI server on :8000; in
- * production FastAPI serves this build itself, so the same relative paths
- * work in both cases.
+ * Paths are relative by default: in development Vite proxies /api to the
+ * FastAPI server on :8000, and in production FastAPI serves this build itself,
+ * so the same paths work in both cases.
+ *
+ * When the frontend is hosted separately from the backend — a static deploy on
+ * Vercel, for instance — set VITE_API_BASE at build time to the backend's
+ * origin (e.g. https://omniguard-api.onrender.com) and every call is redirected
+ * there. Empty by default, which keeps the same-origin behaviour.
  */
+export const API_BASE = (import.meta.env?.VITE_API_BASE ?? '').replace(/\/$/, '')
+
+/** Prefix a path with the configured API origin. */
+export const apiUrl = (path) => `${API_BASE}${path}`
 
 async function request(path, options = {}) {
-  const res = await fetch(path, options)
+  const res = await fetch(apiUrl(path), {
+    credentials: API_BASE ? 'include' : 'same-origin',
+    ...options,
+  })
 
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`

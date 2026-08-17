@@ -1,0 +1,33 @@
+# Vercel deploys the FRONTEND only.
+#
+# The backend cannot run on Vercel's serverless runtime:
+#   * its dependencies total ~223 MB installed (OpenCV alone is 118 MB)
+#     against a 250 MB unzipped function limit, before any models
+#   * the ONNX models add roughly 90 MB more
+#   * SQLite needs a writable, persistent disk; Vercel's filesystem is
+#     read-only apart from an ephemeral /tmp
+#   * video analysis can exceed the function execution timeout
+#
+# Excluding it here also stops Vercel's Python builder from detecting
+# backend/main.py and failing with "No FastAPI entrypoint found".
+#
+# To run the full system, use START.bat locally, or host the backend on a
+# platform with persistent disk and a larger image budget (Render, Railway,
+# Fly.io) and point VITE_API_BASE at it.
+
+backend/
+training/
+notebooks/
+tools/
+brand/
+
+.venv/
+.tmp/
+.pipcache/
+.npmcache/
+__pycache__/
+.pytest_cache/
+
+requirements.txt
+START.bat
+*.ipynb

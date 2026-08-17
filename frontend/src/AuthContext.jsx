@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
+import { API_BASE, apiUrl } from './api.js'
+
 /**
  * Session state.
  *
@@ -18,7 +20,10 @@ async function post(path, fields) {
   const body = new FormData()
   Object.entries(fields).forEach(([k, v]) => body.append(k, v))
 
-  const res = await fetch(path, { method: 'POST', body, credentials: 'same-origin' })
+  const res = await fetch(apiUrl(path), {
+    method: 'POST', body,
+    credentials: API_BASE ? 'include' : 'same-origin',
+  })
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
@@ -33,7 +38,9 @@ export function AuthProvider({ children }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      const res = await fetch(apiUrl('/api/auth/me'), {
+        credentials: API_BASE ? 'include' : 'same-origin',
+      })
       const data = await res.json()
       setUser(data.authenticated ? data.user : null)
     } catch {
@@ -58,7 +65,10 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    await fetch(apiUrl('/api/auth/logout'), {
+      method: 'POST',
+      credentials: API_BASE ? 'include' : 'same-origin',
+    })
     setUser(null)
   }, [])
 

@@ -123,6 +123,38 @@ export function ModelsMissing() {
   )
 }
 
+/** Shown when the API cannot be reached at all — the normal state for a
+ *  static frontend-only deployment, where there is no backend to talk to. */
+export function BackendOffline() {
+  return (
+    <div className="panel p-6 rise"
+         style={{ borderColor: 'color-mix(in srgb, var(--critical) 40%, transparent)' }}>
+      <div className="flex items-start gap-3">
+        <span className="text-lg" style={{ color: 'var(--critical)' }} aria-hidden="true">⚠</span>
+        <div>
+          <h3 className="font-semibold mb-1">Detection backend not connected</h3>
+          <p className="text-sm mb-3" style={{ color: 'var(--ink-2)' }}>
+            This is the interface only. Analysis runs on a local Python service that
+            performs the model inference — it is not part of a static web deployment.
+          </p>
+          <p className="text-sm mb-2" style={{ color: 'var(--ink-2)' }}>
+            To run the full system, clone the repository and launch it locally:
+          </p>
+          <ol className="text-sm space-y-1.5 list-decimal ml-4" style={{ color: 'var(--ink-2)' }}>
+            <li>Clone <code className="px-1 rounded" style={{ background: 'var(--surface-2)' }}>DeepFakeMediaDetection2026</code></li>
+            <li>Run <code className="px-1 rounded" style={{ background: 'var(--surface-2)' }}>START.bat</code></li>
+            <li>Train the models once via the Colab notebook</li>
+          </ol>
+          <p className="text-[12px] mt-3" style={{ color: 'var(--ink-muted)' }}>
+            Everything else on this site — the landing page, the documentation and the
+            full interface — works without it.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Findings({ items }) {
   const tone = { high: 'var(--critical)', medium: 'var(--warning)', info: 'var(--accent)' }
   const glyph = { high: '✕', medium: '!', info: 'i' }

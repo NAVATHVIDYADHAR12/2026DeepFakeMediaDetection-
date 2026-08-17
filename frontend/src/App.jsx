@@ -135,7 +135,12 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    const poll = () => api.health().then((h) => alive && setHealth(h)).catch(() => alive && setHealth(null))
+    // `offline` is distinct from null: null means "not asked yet", offline
+    // means the request was made and the backend is not there. The UI needs
+    // to tell those apart to show the right message on a static deploy.
+    const poll = () => api.health()
+      .then((h) => alive && setHealth(h))
+      .catch(() => alive && setHealth({ offline: true, models_loaded: false, model_count: 0 }))
     poll()
     const id = setInterval(poll, 15000)
     return () => { alive = false; clearInterval(id) }

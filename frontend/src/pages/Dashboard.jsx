@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { api, timeAgo } from '../api.js'
 import { Donut } from '../components/charts.jsx'
-import { EmptyState, ModelsMissing, Panel, Spinner, StatTile, VerdictBadge } from '../components/ui.jsx'
+import { BackendOffline, EmptyState, ModelsMissing, Panel, Spinner, StatTile, VerdictBadge } from '../components/ui.jsx'
 import UploadZone from '../components/UploadZone.jsx'
 
 export default function Dashboard({ health }) {
@@ -43,14 +43,15 @@ export default function Dashboard({ health }) {
 
   return (
     <div className="space-y-5">
-      {health && !health.models_loaded && <ModelsMissing />}
+      {health?.offline ? <BackendOffline />
+        : health && !health.models_loaded ? <ModelsMissing /> : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
         <Panel title="Start a New Scan">
           <p className="text-[13px] mb-4 -mt-1" style={{ color: 'var(--ink-muted)' }}>
             Upload an image or video to analyse its authenticity.
           </p>
-          <UploadZone compact disabled={health && !health.models_loaded}
+          <UploadZone compact disabled={Boolean(health) && !health.models_loaded}
                       onComplete={(report) => navigate(`/report/${report.scan_id}`)} />
         </Panel>
 

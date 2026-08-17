@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { apiUrl } from '../api.js'
+
 /**
  * OmniGuard Assistant — the in-app help chat.
  *
@@ -109,7 +111,7 @@ export default function Assistant() {
     try {
       const body = new FormData()
       body.append('question', text)
-      const res = await fetch('/api/assistant', { method: 'POST', body })
+      const res = await fetch(apiUrl('/api/assistant'), { method: 'POST', body })
       if (!res.ok) throw new Error(`Assistant unavailable (${res.status})`)
       const data = await res.json()
 

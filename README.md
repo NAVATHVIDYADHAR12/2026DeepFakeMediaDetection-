@@ -33,6 +33,36 @@ Hugging Face.
 
 ---
 
+## Deploying
+
+**The frontend deploys to Vercel as a static site.** `vercel.json` builds
+`frontend/` and `.vercelignore` excludes the Python service, so Vercel does not try
+to detect a FastAPI entrypoint.
+
+**The backend does not run on Vercel, by measurement rather than preference:**
+
+| Constraint | Reality |
+|---|---|
+| Serverless function limit | 250 MB unzipped |
+| Runtime dependencies | **~223 MB installed** — OpenCV alone is 118 MB, ONNX Runtime 45 MB |
+| ONNX models | a further ~90 MB, and not committed to the repo |
+| Filesystem | read-only apart from an ephemeral `/tmp`; SQLite needs a persistent writable disk |
+| Execution timeout | video analysis samples 32 frames and can exceed it |
+
+A static deploy therefore gives you the landing page, the full interface and the
+documentation — but scanning needs the local service, and the UI says so plainly
+rather than failing on upload.
+
+To connect a separately hosted backend (Render, Railway, Fly.io — anywhere with a
+persistent disk and a larger image budget), set one build-time variable:
+
+```
+VITE_API_BASE=https://your-backend-host
+```
+
+Every API call is routed there, with credentialed CORS requests. Leave it unset and
+the app talks to its own origin, which is what `START.bat` serves.
+
 ## What it actually does
 
 | Capability | Status | How |

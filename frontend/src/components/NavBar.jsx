@@ -247,9 +247,11 @@ export default function NavBar({ health, isLanding = false }) {
                backdropFilter: 'blur(10px)',
              }}>
           <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'glow-pulse' : 'pulse-soft'}`}
-                style={{ background: ok ? 'var(--good)' : 'var(--warning)' }} aria-hidden="true" />
+                style={{ background: ok ? 'var(--good)' : health?.offline ? 'var(--critical)' : 'var(--warning)' }}
+                aria-hidden="true" />
           <span style={{ color: 'var(--ink-2)' }} className="whitespace-nowrap hidden md:inline">
             {health == null ? 'Connecting…'
+              : health.offline ? 'Backend offline'
               : ok ? `${health.model_count} model${health.model_count === 1 ? '' : 's'} online`
                    : 'No models'}
           </span>
