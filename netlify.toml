@@ -1,0 +1,48 @@
+# Netlify deployment — frontend only, equivalent to the Vercel setup.
+#
+# The backend is not deployed here. Netlify Functions cap a deployed function
+# at 50 MB *zipped* (an AWS Lambda limit); this backend needs ~261 MB unzipped,
+# roughly 100 MB zipped, before any model. That is tighter than Vercel's
+# 250 MB unzipped, so Netlify is not an escape from that constraint.
+#
+# Host the backend on any container platform (Dockerfile and render.yaml are in
+# this repository) and point the frontend at it with VITE_API_BASE.
+#
+# Without a backend the app runs its browser engine: real EXIF, Error Level
+# Analysis, C2PA and local history. See DEPLOYMENT.md.
+
+[build]
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback. /api/* is deliberately excluded so API calls return a real 404
+# rather than index.html — otherwise the client would try to parse an HTML page
+# as JSON and report a confusing error instead of "no backend".
+[[redirects]]
+  from = "/api/*"
+  to = "/api/:splat"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/hero/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -29,7 +29,22 @@ Everything needed to host the backend elsewhere is in this repository:
 
 ---
 
-## Path A — Vercel only (2 minutes)
+## Hosting the frontend: Vercel or Netlify
+
+Both are configured and equivalent — `vercel.json` and `netlify.toml` produce
+the same static build. Pick either; the instructions below say Vercel, and
+Netlify works identically.
+
+Neither can host the backend:
+
+| Host | Function limit | This backend |
+|---|---|---|
+| Vercel | 250 MB unzipped | ~261 MB unzipped |
+| Netlify | 50 MB **zipped** | ~100 MB zipped |
+
+Netlify is the tighter of the two, so it is not a way around the constraint.
+
+## Path A — frontend only (2 minutes)
 
 Gets you a live URL where every page works.
 
