@@ -1,17 +1,60 @@
-"""Central configuration. Every tunable number in the system lives here."""
+"""Central configuration. Every tunable number in the system lives here.
 
+Deployment-dependent values read from the environment, with defaults that keep
+local behaviour exactly as it was. Nothing here needs setting to run locally.
+"""
+
+import os
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BACKEND_DIR.parent
 MODELS_DIR = BACKEND_DIR / "models"
-DATA_DIR = BACKEND_DIR / "data"
+
+# Writable state. Containers often mount a volume elsewhere, or have a
+# read-only image with only /tmp writable, so the location is overridable.
+DATA_DIR = Path(os.getenv("OMNIGUARD_DATA_DIR", str(BACKEND_DIR / "data")))
 UPLOAD_DIR = DATA_DIR / "uploads"
 EVIDENCE_DIR = DATA_DIR / "evidence"
 DB_PATH = DATA_DIR / "omniguard.db"
 
 for _d in (DATA_DIR, UPLOAD_DIR, EVIDENCE_DIR, MODELS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+# --- deployment ---
+HOST = os.getenv("OMNIGUARD_HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", os.getenv("OMNIGUARD_PORT", "8000")))
+
+# Origins allowed to call the API. Local dev origins are always permitted; a
+# hosted frontend (Vercel, etc.) is added via the environment.
+#   OMNIGUARD_ALLOWED_ORIGINS="https://your-app.vercel.app,https://www.example.com"
+_LOCAL_ORIGINS = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:8000", "http://127.0.0.1:8000",
+]
+ALLOWED_ORIGINS = _LOCAL_ORIGINS + [
+    o.strip().rstrip("/")
+    for o in os.getenv("OMNIGUARD_ALLOWED_ORIGINS", "").split(",")
+    if o.strip()
+]
+
+# When the frontend is on a different site to the API, the session cookie must
+# be SameSite=None and Secure or the browser will not send it. That combination
+# requires HTTPS, so it is opt-in rather than the local default.
+CROSS_SITE_COOKIES = os.getenv("OMNIGUARD_CROSS_SITE", "").lower() in {"1", "true", "yes"}
+
+# Face models are ~38 MB and are not committed. A fresh container fetches them
+# on first boot; set to "0" if the image already bundles them.
+AUTO_DOWNLOAD_FACE_MODELS = os.getenv("OMNIGUARD_AUTO_DOWNLOAD", "1").lower() not in {"0", "false", "no"}
+
+FACE_MODEL_URLS = {
+    "face_detection_yunet.onnx":
+        "https://github.com/opencv/opencv_zoo/raw/main/models/"
+        "face_detection_yunet/face_detection_yunet_2023mar.onnx",
+    "face_recognition_sface.onnx":
+        "https://github.com/opencv/opencv_zoo/raw/main/models/"
+        "face_recognition_sface/face_recognition_sface_2021dec.onnx",
+}
 
 # --- face detection / recognition (OpenCV Zoo models, shipped in models/) ---
 YUNET_PATH = MODELS_DIR / "face_detection_yunet.onnx"

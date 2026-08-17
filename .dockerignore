@@ -1,0 +1,21 @@
+# Keep the build context small and the image reproducible.
+.venv/
+.tmp/
+.pipcache/
+.npmcache/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+backend/data/
+backend/models/*.onnx
+backend/models/*.npy
+backend/tests/
+frontend/node_modules/
+frontend/src/
+frontend/public/hero/
+brand/
+notebooks/
+training/
+tools/
+.git/
+*.md

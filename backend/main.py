@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import assistant              # noqa: E402
+import bootstrap              # noqa: E402
 import auth                   # noqa: E402
 import config as cfg          # noqa: E402
 import database as db         # noqa: E402
@@ -56,6 +57,10 @@ async def lifespan(_app: FastAPI):
     print(f"  database ready ({auth.user_count()} account(s)"
           + (f", {expired} expired session(s) purged" if expired else "") + ")")
 
+    fetched = bootstrap.ensure_face_models()
+    if fetched:
+        print(f"  fetched {len(fetched)} face model(s) on first boot")
+
     try:
         STATE["faces"] = FaceAnalyzer()
         print("  face analyzer ready (YuNet + SFace)")
@@ -74,8 +79,9 @@ async def lifespan(_app: FastAPI):
         print("    then unzip omniguard_models.zip into backend/models/.")
         print("    The server still runs; scan endpoints will return 503.")
 
+    print(f"  {bootstrap.describe_environment()}")
     print("=" * 62)
-    print("  http://127.0.0.1:8000     (API docs at /docs)")
+    print(f"  listening on {cfg.HOST}:{cfg.PORT}     (API docs at /docs)")
     print("=" * 62 + "\n")
     yield
 
@@ -87,10 +93,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# allow_origins must be an explicit list, never "*": a wildcard is invalid
+# alongside allow_credentials, and the browser silently drops the response.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
-                   "http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=cfg.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -376,13 +383,16 @@ _COOKIE = "omniguard_session"
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
+    # Same-site by default (local use). When the frontend is hosted on a
+    # different domain to the API, the browser will only send the cookie if it
+    # is SameSite=None AND Secure - and Secure requires HTTPS, which is why
+    # this is opt-in rather than always on.
     response.set_cookie(
         _COOKIE, token,
         max_age=auth.SESSION_DAYS * 86400,
         httponly=True,
-        samesite="lax",
-        # secure=True is omitted deliberately: this runs on http://127.0.0.1,
-        # where a Secure cookie would simply never be sent.
+        samesite="none" if cfg.CROSS_SITE_COOKIES else "lax",
+        secure=cfg.CROSS_SITE_COOKIES,
     )
 
 
@@ -477,4 +487,4 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host=cfg.HOST, port=cfg.PORT, log_level="info")

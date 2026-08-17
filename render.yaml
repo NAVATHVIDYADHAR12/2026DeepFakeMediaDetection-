@@ -1,0 +1,33 @@
+# One-click backend deployment on Render.
+#
+# In the Render dashboard: New -> Blueprint -> point at this repository.
+# Render reads this file and provisions the service.
+#
+# After it deploys, copy the service URL (https://<name>.onrender.com) and set
+# it as VITE_API_BASE in the Vercel project, then redeploy the frontend.
+#
+# Note on the free plan: the instance sleeps after 15 minutes of inactivity and
+# takes roughly 50 seconds to wake. The first request after idling will be slow.
+# Its disk is also ephemeral, so scan history and accounts reset on restart —
+# fine for a demo, and the reason DATA_DIR points at /tmp rather than a volume.
+
+services:
+  - type: web
+    name: omniguard-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: OMNIGUARD_HOST
+        value: 0.0.0.0
+      - key: OMNIGUARD_DATA_DIR
+        value: /tmp/omniguard
+      # Cookies must be SameSite=None; Secure to survive a cross-site request
+      # from the Vercel-hosted frontend.
+      - key: OMNIGUARD_CROSS_SITE
+        value: "1"
+      # Replace with the real Vercel URL, then redeploy. A wildcard is not
+      # possible here: credentialed CORS requires an explicit origin.
+      - key: OMNIGUARD_ALLOWED_ORIGINS
+        sync: false

@@ -35,33 +35,70 @@ Hugging Face.
 
 ## Deploying
 
-**The frontend deploys to Vercel as a static site.** `vercel.json` builds
-`frontend/` and `.vercelignore` excludes the Python service, so Vercel does not try
-to detect a FastAPI entrypoint.
-
-**The backend does not run on Vercel, by measurement rather than preference:**
+The frontend and the backend deploy to **different places**, because the backend
+cannot run on Vercel. That is a measurement, not a preference:
 
 | Constraint | Reality |
 |---|---|
-| Serverless function limit | 250 MB unzipped |
-| Runtime dependencies | **~223 MB installed** — OpenCV alone is 118 MB, ONNX Runtime 45 MB |
-| ONNX models | a further ~90 MB, and not committed to the repo |
-| Filesystem | read-only apart from an ephemeral `/tmp`; SQLite needs a persistent writable disk |
+| Vercel serverless limit | 250 MB unzipped |
+| Dependencies, normal wheels | **~223 MB** — OpenCV alone is 118 MB |
+| Dependencies, headless wheels | **~261 MB** — still over, before any model |
+| ONNX models | a further ~90 MB, and not committed |
+| Filesystem | read-only apart from an ephemeral `/tmp`; SQLite needs a writable disk |
 | Execution timeout | video analysis samples 32 frames and can exceed it |
 
-A static deploy therefore gives you the landing page, the full interface and the
-documentation — but scanning needs the local service, and the UI says so plainly
-rather than failing on upload.
+So: **frontend on Vercel, backend on any container host.** Two steps.
 
-To connect a separately hosted backend (Render, Railway, Fly.io — anywhere with a
-persistent disk and a larger image budget), set one build-time variable:
+### 1. Backend → Render (or any Docker host)
+
+The repository ships a `Dockerfile` and a `render.yaml` blueprint.
+
+1. Render dashboard → **New → Blueprint** → point at this repository
+2. When prompted, set `OMNIGUARD_ALLOWED_ORIGINS` to your Vercel URL,
+   e.g. `https://your-app.vercel.app`
+3. Deploy, then copy the service URL — `https://omniguard-api.onrender.com`
+
+Everything else is preset in the blueprint. The face models (~38 MB) download
+automatically on first boot; the container needs no manual setup.
+
+> **Free-plan caveats.** The instance sleeps after 15 minutes idle and takes ~50 s
+> to wake, so the first request after a pause is slow. Its disk is ephemeral, so
+> scan history and accounts reset on restart. Fine for a demo; use a paid instance
+> with a mounted volume if you need persistence.
+
+### 2. Frontend → Vercel
+
+Add one environment variable in the Vercel project, then redeploy:
 
 ```
-VITE_API_BASE=https://your-backend-host
+VITE_API_BASE = https://omniguard-api.onrender.com
 ```
 
-Every API call is routed there, with credentialed CORS requests. Leave it unset and
-the app talks to its own origin, which is what `START.bat` serves.
+Every API call routes there as a credentialed cross-origin request. Leave it unset
+and the app talks to its own origin — which is what `START.bat` serves locally.
+
+### Environment variables
+
+All optional; the defaults are exactly the local behaviour.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` / `OMNIGUARD_PORT` | `8000` | Most hosts inject `PORT` |
+| `OMNIGUARD_HOST` | `127.0.0.1` | Set to `0.0.0.0` in a container |
+| `OMNIGUARD_DATA_DIR` | `backend/data` | Move SQLite and uploads onto a writable volume |
+| `OMNIGUARD_ALLOWED_ORIGINS` | *(none)* | Comma-separated origins allowed to call the API. Localhost is always permitted. |
+| `OMNIGUARD_CROSS_SITE` | `0` | Set `1` when the frontend is on another domain — issues the session cookie as `SameSite=None; Secure`, without which the browser will not send it |
+| `OMNIGUARD_AUTO_DOWNLOAD` | `1` | Fetch the face models on first boot |
+
+A wildcard CORS origin is deliberately impossible here: `*` is invalid alongside
+credentials, and the browser would silently discard every authenticated response.
+
+### Detection still needs trained models
+
+A deployed backend answers health, auth, assistant and face-detection requests
+immediately, but **scan endpoints return 503 until the classifiers exist**. Train
+them once via the Colab notebook and commit the resulting `.onnx` files, or mount
+them onto the container — they are gitignored by default because they are large.
 
 ## What it actually does
 

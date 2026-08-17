@@ -1,0 +1,17 @@
+# Server/container dependencies.
+#
+# Identical to requirements.txt except for two deliberate differences:
+#
+#   * opencv-python-headless instead of opencv-python — a container has no
+#     display, and the GUI wheel pulls in X11 libraries that would only add
+#     image size and system packages.
+#   * no test-only packages (pytest, httpx, onnx).
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+onnxruntime>=1.19
+opencv-python-headless>=4.10
+numpy>=1.26
+pillow>=10.3
