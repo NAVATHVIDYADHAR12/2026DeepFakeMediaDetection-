@@ -1,33 +1,47 @@
-# One-click backend deployment on Render.
+# One-click deployment on Render — the WHOLE app, not just the API.
 #
 # In the Render dashboard: New -> Blueprint -> point at this repository.
-# Render reads this file and provisions the service.
+# Render reads this file and provisions the service. Nothing else to configure.
 #
-# After it deploys, copy the service URL (https://<name>.onrender.com) and set
-# it as VITE_API_BASE in the Vercel project, then redeploy the frontend.
+# The Dockerfile is multi-stage: Node builds the dashboard, Python serves both
+# it and the API from one process. So a single service is the complete product
+# on one URL — landing page, dashboard, scanner, face recognition, accounts,
+# assistant and documentation.
 #
-# Note on the free plan: the instance sleeps after 15 minutes of inactivity and
-# takes roughly 50 seconds to wake. The first request after idling will be slow.
-# Its disk is also ephemeral, so scan history and accounts reset on restart —
-# fine for a demo, and the reason DATA_DIR points at /tmp rather than a volume.
+# That single-origin setup is also why there is no CORS configuration and no
+# cross-site cookie handling here: the browser is talking to the same host it
+# loaded the page from, which is the simplest and most robust arrangement.
+# (Those settings exist for the split deployment — frontend on Vercel, API
+# elsewhere — and are documented in DEPLOYMENT.md.)
+#
+# Free plan, worth knowing before the demo:
+#   * the instance sleeps after 15 minutes idle and takes ~50 s to wake, so the
+#     first request after a pause is slow
+#   * its disk is ephemeral, so accounts and scan history reset on restart.
+#     That is why the data directory points at /tmp rather than pretending to
+#     be durable. Attach a disk on a paid plan for persistence.
 
 services:
   - type: web
-    name: omniguard-api
+    name: omniguard
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    region: oregon
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
+      # Render injects PORT; the app reads it. HOST must be 0.0.0.0 or the
+      # service is unreachable from outside the container.
       - key: OMNIGUARD_HOST
         value: 0.0.0.0
+
+      # Writable on the free plan. Ephemeral by nature — see the note above.
       - key: OMNIGUARD_DATA_DIR
         value: /tmp/omniguard
-      # Cookies must be SameSite=None; Secure to survive a cross-site request
-      # from the Vercel-hosted frontend.
-      - key: OMNIGUARD_CROSS_SITE
-        value: "1"
-      # Replace with the real Vercel URL, then redeploy. A wildcard is not
-      # possible here: credentialed CORS requires an explicit origin.
-      - key: OMNIGUARD_ALLOWED_ORIGINS
-        sync: false
+
+      # The face models are committed, so there is nothing to fetch at boot.
+      # Disabling the attempt keeps cold starts quick and avoids a needless
+      # outbound request.
+      - key: OMNIGUARD_AUTO_DOWNLOAD
+        value: "0"

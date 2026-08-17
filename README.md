@@ -47,101 +47,31 @@ Hugging Face.
 
 ## Deploying
 
-**Recommended: one Hugging Face Space hosts the entire app, free.**
+**One Render service hosts the whole app.** The Dockerfile builds the dashboard
+and the API into a single container, so one deployment serves everything from
+one origin — which also means no CORS and no cross-site cookie configuration.
 
-FastAPI serves the built dashboard as well as the API, so a single container is
-the whole product — landing page, dashboard, scanner, face recognition,
-accounts, assistant, documentation — on one URL. No split deployment, no CORS,
-no environment variables to wire up.
+1. <https://render.com> → **New → Blueprint**
+2. Connect this repository
+3. **Apply**
 
-| Host | Free? | Runs the backend? | Notes |
-|---|---|---|---|
-| **Hugging Face Spaces** | yes, no card | **yes** | 2 vCPU, 16 GB RAM, 16 GB disk. Built for ML. **Best fit.** |
-| Render | yes | yes | Sleeps after 15 min idle, ~50 s cold start |
-| Fly.io / Railway / Cloud Run | limited free | yes | Fine, more setup |
-| Vercel / Netlify | yes | **no** | Frontend only — see the limits below |
+No environment variables to set; `render.yaml` has it covered. First build takes
+~10–15 minutes.
 
-Vercel and Netlify cannot run this backend:
+Alternatives, all documented in [DEPLOYMENT.md](DEPLOYMENT.md):
 
-| | Function limit | This backend |
+| Host | Free | Runs the backend? |
 |---|---|---|
-| Vercel | 250 MB unzipped | ~261 MB unzipped |
-| Netlify | 50 MB **zipped** | ~100 MB zipped |
+| **Render** | yes | **yes** — blueprint included |
+| Hugging Face Spaces | yes, no card | **yes** |
+| Vercel / Netlify | yes | **no** — 250 MB / 50 MB function limits against ~261 MB |
 
-OpenCV alone is ~117 MB. Netlify is the tighter of the two, so switching
-between them changes nothing.
+On Vercel or Netlify the app still runs: it falls back to a browser engine with
+real EXIF, Error Level Analysis, C2PA and local history, and reports deepfake
+verdicts as *Not verified* rather than guessing.
 
-### Option 1 — Hugging Face Spaces (everything, free)
-
-1. Sign in at <https://huggingface.co> → **New → Space**
-2. Name it, choose **Docker** as the SDK, and **Blank** as the template
-3. Create the Space, then push this repository to it:
-
-```bash
-git remote add space https://huggingface.co/spaces/YOUR_NAME/YOUR_SPACE
-git push space main
-```
-
-That is all. The Space reads the configuration from this README's frontmatter,
-builds the container — Node compiles the dashboard, Python installs the backend —
-and serves the whole app at
-`https://YOUR_NAME-YOUR_SPACE.hf.space`.
-
-First build takes roughly 5–10 minutes. After that it is live.
-
-> Free Spaces pause after ~48 hours of inactivity and restart on the next
-> visit. Their disk resets on restart, so accounts and scan history do not
-> survive a rebuild — fine for a demo.
-
-### Option 2 — frontend on Vercel or Netlify
-
-Both are configured (`vercel.json`, `netlify.toml`). Import the repository and
-deploy; no settings needed.
-
-Without a backend the app runs its **browser engine**: real EXIF parsing, real
-Error Level Analysis, real C2PA detection, history in IndexedDB. Deepfake
-verdicts show as *Not verified* rather than a guessed number.
-
-To add the backend, host it anywhere from the list above and set one build-time
-variable in the frontend project:
-
-```
-VITE_API_BASE = https://your-backend-host
-```
-
-The backend then needs `OMNIGUARD_CROSS_SITE=1` and
-`OMNIGUARD_ALLOWED_ORIGINS=https://your-frontend-url`, because a cookie sent
-across sites must be `SameSite=None; Secure`.
-
-### Detection still needs trained models
-
-Any deployment answers health, auth, assistant, face detection and forensics
-immediately. **Scan verdicts require the trained classifiers**, which come out
-of the Colab run above — they are not downloadable. Unzip
-`omniguard_models.zip` into `backend/models/`, commit them, and redeploy:
-
-```bash
-git add -f backend/models/*.onnx backend/models/*.npy backend/models/manifest.json
-git commit -m "Add trained classifiers"
-git push
-```
-
-### Environment variables
-
-All optional; the defaults are exactly the local behaviour.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` / `OMNIGUARD_PORT` | `8000` | Most hosts inject `PORT` |
-| `OMNIGUARD_HOST` | `127.0.0.1` | Set `0.0.0.0` in a container |
-| `OMNIGUARD_DATA_DIR` | `backend/data` | Move SQLite and uploads to a writable volume |
-| `OMNIGUARD_ALLOWED_ORIGINS` | *(none)* | Comma-separated origins allowed to call the API; localhost is always permitted |
-| `OMNIGUARD_CROSS_SITE` | `0` | `1` when the frontend is on another domain |
-| `OMNIGUARD_AUTO_DOWNLOAD` | `1` | Fetch face models if missing (they are committed, so normally a no-op) |
-| `VITE_API_BASE` | *(none)* | **Frontend build-time.** Backend origin when hosted separately |
-
-A wildcard CORS origin is impossible by design: `*` is invalid alongside
-credentials, and the browser would discard every authenticated response.
+**Detection needs the trained classifiers either way** — see the training step
+above. Everything else works immediately.
 
 ## What it actually does
 

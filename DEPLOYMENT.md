@@ -6,23 +6,53 @@ Read this first — it explains what runs where, and why.
 
 ## The short version
 
-**Deploy one Hugging Face Space and you get the entire app, free.** FastAPI
-serves the dashboard as well as the API, so a single container is the whole
-product on one URL.
+**One Render service hosts the entire app.** The Dockerfile is multi-stage —
+Node builds the dashboard, Python serves both it and the API from one process —
+so a single deployment is the complete product on one URL.
 
-| Host | Free | Backend? | Notes |
+Because it is a single origin, there is **no CORS to configure and no
+cross-site cookie handling**. That is the simplest and most robust arrangement,
+and it is why the blueprint has almost nothing in it.
+
+| Host | Free | Runs the backend? | Notes |
 |---|---|---|---|
-| **Hugging Face Spaces** | yes, no card | **yes** | 2 vCPU, 16 GB RAM, 16 GB disk. Best fit. |
-| Render | yes | yes | Sleeps after 15 min, ~50 s wake |
+| **Render** | yes | **yes** | Blueprint included. Sleeps after 15 min idle. |
+| Hugging Face Spaces | yes, no card | **yes** | Also whole-app; pauses after ~48 h |
 | Fly.io / Railway / Cloud Run | limited | yes | More setup |
-| Vercel / Netlify | yes | **no** | Frontend only |
-
-Vercel caps a function at 250 MB unzipped and Netlify at 50 MB zipped; this
-backend needs ~261 MB unzipped, OpenCV alone being ~117 MB. Neither can host it.
+| Vercel / Netlify | yes | **no** | Frontend only — 250 MB / 50 MB limits vs ~261 MB |
 
 ---
 
-## Path A - Hugging Face Spaces (recommended, everything works)
+## Path A - Render (recommended)
+
+1. <https://render.com> -> **New -> Blueprint**
+2. Connect this repository
+3. Click **Apply**
+
+That is the whole process. `render.yaml` and the `Dockerfile` do the rest: no
+environment variables to set, no `VITE_API_BASE`, no CORS origins.
+
+First build takes ~10-15 minutes (it installs OpenCV and ONNX Runtime, then
+compiles the dashboard). After that the app is live at
+`https://omniguard.onrender.com` — Render will show the exact URL.
+
+**Verified working on this exact configuration:** landing page, Dashboard,
+Scanner, Report, History, Models, System, Face ID, sign-up and sessions,
+assistant, documentation, and every forensic check. Warm scans run in ~0.15 s.
+
+Deepfake verdicts still need the trained classifiers - see Path C.
+
+> **Free plan, worth knowing before a demo.** The instance sleeps after 15
+> minutes of inactivity and takes roughly 50 seconds to wake, so open the URL a
+> minute before showing it. Its disk is ephemeral: accounts and scan history
+> reset when it restarts. A paid instance with a mounted disk fixes both.
+
+---
+
+## Path B - Hugging Face Spaces
+
+Also hosts the whole app, free, without a card, and does not sleep as
+aggressively.
 
 1. <https://huggingface.co> -> **New -> Space**
 2. SDK **Docker**, template **Blank**
@@ -33,31 +63,20 @@ git remote add space https://huggingface.co/spaces/YOUR_NAME/YOUR_SPACE
 git push space main
 ```
 
-The Space reads its configuration from the README frontmatter, builds the
-container (Node compiles the dashboard, Python installs the backend) and serves
-everything at `https://YOUR_NAME-YOUR_SPACE.hf.space`.
-
-First build: ~5-10 minutes.
-
-Working immediately: landing page, Dashboard, Scanner, Report, History, Models,
-System, Face ID, accounts, assistant, documentation, and all forensic checks.
-Deepfake verdicts need the trained classifiers - see Path C.
-
-> Free Spaces pause after ~48 hours idle and restart on the next visit. The
-> disk resets on restart, so accounts and history do not survive a rebuild.
+The Space reads its configuration from the README frontmatter.
 
 ---
 
-## Path B - frontend only on Vercel or Netlify
+## Path B2 - split: frontend on Vercel or Netlify
 
-Import the repository and deploy. `vercel.json` and `netlify.toml` are both
-committed; no settings required.
+Only worth it if you specifically want a CDN-hosted frontend. `vercel.json` and
+`netlify.toml` are both committed.
 
 Without a backend the app runs its browser engine - real EXIF, Error Level
 Analysis, C2PA and local history - and shows *Not verified* instead of a
 guessed score.
 
-To attach a backend hosted elsewhere, set one build-time variable:
+To attach a backend hosted elsewhere, set a build-time variable on the frontend:
 
 ```
 VITE_API_BASE = https://your-backend-host
@@ -65,7 +84,8 @@ VITE_API_BASE = https://your-backend-host
 
 and on the backend set `OMNIGUARD_CROSS_SITE=1` plus
 `OMNIGUARD_ALLOWED_ORIGINS=https://your-frontend-url`, because a cookie sent
-across sites must be `SameSite=None; Secure`.
+across sites must be `SameSite=None; Secure`. Deploying everything on Render
+avoids all of that.
 
 ---
 
