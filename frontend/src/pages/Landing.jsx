@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -199,12 +199,23 @@ function HeroHeadline({ scroller, triggerRef }) {
               {line.map((word, wi) => (
                 // Each word is a masked box and the inner span slides up out of
                 // it. The padding keeps the mask off descenders and the glow.
-                <span key={wi} className="hero-word inline-block overflow-hidden align-bottom"
-                      style={{ paddingBottom: '0.14em', marginBottom: '-0.14em' }}>
-                  <span className={`inline-block ${li === 1 ? 'headline-animated' : ''}`}>
-                    {word}{wi < line.length - 1 ? ' ' : ''}
+                //
+                // The space is a real text node BETWEEN the masks. Putting it
+                // inside failed twice over: an inline-block trims its own
+                // trailing whitespace, and overflow:hidden clips whatever
+                // survives — which is why the words ran together as
+                // "Seebeyond". A margin would fix the look but leave no space
+                // in the DOM, so the heading would still be read aloud and
+                // copied as one word.
+                <Fragment key={wi}>
+                  <span className="hero-word inline-block overflow-hidden align-bottom"
+                        style={{ paddingBottom: '0.14em', marginBottom: '-0.14em' }}>
+                    <span className={`inline-block ${li === 1 ? 'headline-animated' : ''}`}>
+                      {word}
+                    </span>
                   </span>
-                </span>
+                  {wi < line.length - 1 && ' '}
+                </Fragment>
               ))}
             </span>
           ))}
