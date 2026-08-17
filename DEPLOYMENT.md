@@ -6,103 +6,66 @@ Read this first — it explains what runs where, and why.
 
 ## The short version
 
-| Part | Where it runs | Works after `git clone`? |
-|---|---|---|
-| Frontend (all pages, animations, docs) | **Vercel** — static | ✅ yes |
-| Forensics: EXIF, ELA, C2PA, history | **The browser** | ✅ yes |
-| Face detection + recognition | Python service | ✅ yes — models are committed |
-| **Deepfake verdict** | Python service | ⚠️ **needs training first** |
+**Deploy one Hugging Face Space and you get the entire app, free.** FastAPI
+serves the dashboard as well as the API, so a single container is the whole
+product on one URL.
 
-**Vercel hosts the frontend only.** The backend cannot run there, and that is a
-measurement rather than a preference:
+| Host | Free | Backend? | Notes |
+|---|---|---|---|
+| **Hugging Face Spaces** | yes, no card | **yes** | 2 vCPU, 16 GB RAM, 16 GB disk. Best fit. |
+| Render | yes | yes | Sleeps after 15 min, ~50 s wake |
+| Fly.io / Railway / Cloud Run | limited | yes | More setup |
+| Vercel / Netlify | yes | **no** | Frontend only |
 
-| Constraint | Reality |
-|---|---|
-| Vercel serverless limit | 250 MB unzipped |
-| Dependencies, normal wheels | ~223 MB |
-| Dependencies, headless wheels | **~261 MB** — still over, before any model |
-| Filesystem | read-only except an ephemeral `/tmp`; SQLite needs a writable disk |
-| Timeout | video analysis samples 32 frames and can exceed it |
-
-Everything needed to host the backend elsewhere is in this repository:
-`Dockerfile`, `render.yaml`, `requirements-server.txt`.
+Vercel caps a function at 250 MB unzipped and Netlify at 50 MB zipped; this
+backend needs ~261 MB unzipped, OpenCV alone being ~117 MB. Neither can host it.
 
 ---
 
-## Hosting the frontend: Vercel or Netlify
+## Path A - Hugging Face Spaces (recommended, everything works)
 
-Both are configured and equivalent — `vercel.json` and `netlify.toml` produce
-the same static build. Pick either; the instructions below say Vercel, and
-Netlify works identically.
-
-Neither can host the backend:
-
-| Host | Function limit | This backend |
-|---|---|---|
-| Vercel | 250 MB unzipped | ~261 MB unzipped |
-| Netlify | 50 MB **zipped** | ~100 MB zipped |
-
-Netlify is the tighter of the two, so it is not a way around the constraint.
-
-## Path A — frontend only (2 minutes)
-
-Gets you a live URL where every page works.
-
-1. Vercel → **Add New → Project** → import this repository
-2. Leave every setting alone — `vercel.json` handles it
-3. Deploy
-
-**What works:** landing page, Dashboard, Scanner, Report, History, Models,
-System, sign-up UI, documentation.
-
-**What the Scanner does:** real analysis in your browser — EXIF metadata,
-Error Level Analysis, C2PA provenance — with history saved in IndexedDB. The
-verdict shows **"Not verified"** because no classifier is loaded. That is
-deliberate: a guessed score would be worse than an absent one.
-
----
-
-## Path B — Vercel + a real backend (15 minutes)
-
-Adds face detection, face recognition, video, accounts and the assistant.
-
-### 1. Deploy the backend
-
-**Render** (free, blueprint included):
-
-1. Render → **New → Blueprint** → point at this repository
-2. Set `OMNIGUARD_ALLOWED_ORIGINS` to your Vercel URL, e.g.
-   `https://your-app.vercel.app`
-3. Deploy, then copy the service URL
-
-Any Docker host works the same way:
+1. <https://huggingface.co> -> **New -> Space**
+2. SDK **Docker**, template **Blank**
+3. Push this repository to the Space:
 
 ```bash
-docker build -t omniguard .
-docker run -p 8000:8000 \
-  -e OMNIGUARD_HOST=0.0.0.0 \
-  -e OMNIGUARD_CROSS_SITE=1 \
-  -e OMNIGUARD_ALLOWED_ORIGINS=https://your-app.vercel.app \
-  omniguard
+git remote add space https://huggingface.co/spaces/YOUR_NAME/YOUR_SPACE
+git push space main
 ```
 
-The face models are committed, so the image is self-contained — no download
-step, no first-boot fetch.
+The Space reads its configuration from the README frontmatter, builds the
+container (Node compiles the dashboard, Python installs the backend) and serves
+everything at `https://YOUR_NAME-YOUR_SPACE.hf.space`.
 
-### 2. Point the frontend at it
+First build: ~5-10 minutes.
 
-In the Vercel project, add an environment variable and redeploy:
+Working immediately: landing page, Dashboard, Scanner, Report, History, Models,
+System, Face ID, accounts, assistant, documentation, and all forensic checks.
+Deepfake verdicts need the trained classifiers - see Path C.
+
+> Free Spaces pause after ~48 hours idle and restart on the next visit. The
+> disk resets on restart, so accounts and history do not survive a rebuild.
+
+---
+
+## Path B - frontend only on Vercel or Netlify
+
+Import the repository and deploy. `vercel.json` and `netlify.toml` are both
+committed; no settings required.
+
+Without a backend the app runs its browser engine - real EXIF, Error Level
+Analysis, C2PA and local history - and shows *Not verified* instead of a
+guessed score.
+
+To attach a backend hosted elsewhere, set one build-time variable:
 
 ```
-VITE_API_BASE = https://your-backend.onrender.com
+VITE_API_BASE = https://your-backend-host
 ```
 
-That is the whole wiring. The frontend detects the backend on load and stops
-using its browser engine.
-
-> **Free-tier caveats.** Render's free instance sleeps after 15 minutes idle
-> and takes ~50 s to wake, so the first request after a pause is slow. Its disk
-> is ephemeral, so accounts and scan history reset on restart.
+and on the backend set `OMNIGUARD_CROSS_SITE=1` plus
+`OMNIGUARD_ALLOWED_ORIGINS=https://your-frontend-url`, because a cookie sent
+across sites must be `SameSite=None; Secure`.
 
 ---
 

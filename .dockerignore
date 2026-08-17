@@ -13,8 +13,7 @@ backend/models/dummy_testnet*
 backend/models/manifest.json
 backend/tests/
 frontend/node_modules/
-frontend/src/
-frontend/public/hero/
+frontend/dist/
 brand/
 notebooks/
 training/
