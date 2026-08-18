@@ -27,6 +27,47 @@ const VERDICT_COLOUR = {
 
 const colourFor = (v) => VERDICT_COLOUR[v] ?? 'var(--ink-muted)'
 
+/**
+ * Rebuild the submitted text with matching runs marked.
+ *
+ * The backend returns character offsets into the original string, so the text
+ * is shown exactly as typed — punctuation, capitalisation and line breaks
+ * intact — rather than a reconstructed lowercase copy.
+ */
+function highlight(text, spans) {
+  if (!spans?.length) return text
+
+  const parts = []
+  let cursor = 0
+
+  spans.forEach((span, i) => {
+    if (span.start > cursor) {
+      parts.push(<span key={`plain-${i}`}>{text.slice(cursor, span.start)}</span>)
+    }
+    parts.push(
+      <mark
+        key={`hit-${i}`}
+        title={`${span.words} consecutive words found in the reference`}
+        style={{
+          background: 'color-mix(in srgb, var(--warning) 26%, transparent)',
+          color: 'var(--ink)',
+          borderBottom: '2px solid var(--warning)',
+          borderRadius: 3,
+          padding: '1px 2px',
+        }}
+      >
+        {text.slice(span.start, span.end)}
+      </mark>
+    )
+    cursor = span.end
+  })
+
+  if (cursor < text.length) {
+    parts.push(<span key="plain-end">{text.slice(cursor)}</span>)
+  }
+  return parts
+}
+
 function Toggle({ checked, onChange, title, body, accent }) {
   return (
     <button
@@ -228,25 +269,30 @@ export default function TextCheck() {
                 <Meter value={plag.overlap_percent / 100} color={colourFor(plag.verdict)} />
               </div>
 
-              {plag.matched_passages.length > 0 && (
+              {plag.matched_spans?.length > 0 && (
                 <div className="mt-5">
-                  <div className="text-[12px] mb-2" style={{ color: 'var(--ink-2)' }}>
-                    Matching passages — longest first
-                  </div>
-                  <ul className="space-y-2">
-                    {plag.matched_passages.map((p, i) => (
-                      <li key={i}
-                          className="text-[12.5px] px-3 py-2 rounded-lg leading-relaxed fade-in"
+                  <div className="text-[12px] mb-2 flex items-center gap-2" style={{ color: 'var(--ink-2)' }}>
+                    <span>Where it matches — highlighted in your text</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded"
                           style={{
-                            '--i': i,
-                            background: 'color-mix(in srgb, var(--warning) 9%, transparent)',
-                            borderLeft: '2px solid var(--warning)',
-                            color: 'var(--ink-2)',
+                            background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+                            color: 'var(--warning)',
                           }}>
-                          “{p}”
-                      </li>
-                    ))}
-                  </ul>
+                      {plag.flagged_words} of {plag.total_words} words
+                    </span>
+                  </div>
+
+                  {/* The original text with matching runs marked in place. Spans
+                      are character offsets into the text exactly as submitted,
+                      so punctuation and capitalisation are preserved. */}
+                  <div className="text-[13px] leading-[1.9] px-4 py-3 rounded-xl whitespace-pre-wrap"
+                       style={{
+                         background: 'rgba(3,7,18,.45)',
+                         border: '1px solid var(--border)',
+                         color: 'var(--ink-2)',
+                       }}>
+                    {highlight(text, plag.matched_spans)}
+                  </div>
                 </div>
               )}
 

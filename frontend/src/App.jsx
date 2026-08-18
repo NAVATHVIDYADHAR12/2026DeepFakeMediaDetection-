@@ -194,6 +194,7 @@ export default function App() {
                 <Route path="/models"      element={<Models />} />
                 <Route path="/identity"    element={<Identity />} />
                 <Route path="/system"      element={<System />} />
+                <Route path="/text"        element={<TextCheck />} />
                 <Route path="/signup"      element={<SignUp />} />
                 <Route path="/login"       element={<SignUp />} />
                 <Route path="/soon/:topic" element={<ComingSoon />} />

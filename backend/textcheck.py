@@ -93,19 +93,37 @@ def check_plagiarism(text: str, reference: str) -> dict:
     matched = sum(matched_flags)
     overlap = matched / len(doc) if doc else 0.0
 
-    # Stitch consecutive matching shingles back into readable passages.
-    passages: list[str] = []
+    # Which word positions fall inside a matching run. A shingle at index i
+    # covers words i..i+NGRAM-1, so a hit marks all of them.
+    flagged = [False] * len(words)
+    for i, hit in enumerate(matched_flags):
+        if hit:
+            for j in range(i, min(i + NGRAM, len(words))):
+                flagged[j] = True
+
+    # Character offsets into the ORIGINAL text, so the UI can highlight the
+    # passage in place rather than showing a reconstructed lowercase copy.
+    # Walking the original with the same tokenizer keeps the two in step.
+    spans: list[dict] = []
+    positions = [(m.start(), m.end()) for m in _WORD.finditer(text.lower())]
+
     run_start = None
-    for i, hit in enumerate(matched_flags + [False]):
-        if hit and run_start is None:
+    for i in range(len(words) + 1):
+        inside = i < len(words) and flagged[i]
+        if inside and run_start is None:
             run_start = i
-        elif not hit and run_start is not None:
-            span = words[run_start:i + NGRAM - 1]
-            if len(span) >= NGRAM:
-                passages.append(" ".join(span))
+        elif not inside and run_start is not None:
+            start_char = positions[run_start][0]
+            end_char = positions[i - 1][1]
+            spans.append({
+                "start": start_char,
+                "end": end_char,
+                "words": i - run_start,
+                "text": text[start_char:end_char],
+            })
             run_start = None
 
-    passages.sort(key=len, reverse=True)
+    passages = sorted((s["text"] for s in spans), key=len, reverse=True)
 
     return {
         "available": True,
@@ -114,7 +132,11 @@ def check_plagiarism(text: str, reference: str) -> dict:
         "total_ngrams": len(doc),
         "ngram_size": NGRAM,
         "matched_passages": passages[:12],
-        "longest_match_words": len(passages[0].split()) if passages else 0,
+        # Character ranges, in document order, for inline highlighting.
+        "matched_spans": sorted(spans, key=lambda s: s["start"]),
+        "flagged_words": sum(flagged),
+        "total_words": len(words),
+        "longest_match_words": max((s["words"] for s in spans), default=0),
         "verdict": (
             "HIGH" if overlap >= 0.25 else
             "MODERATE" if overlap >= 0.10 else
