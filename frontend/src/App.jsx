@@ -16,6 +16,7 @@ import History from './pages/History.jsx'
 import Models from './pages/Models.jsx'
 import Identity from './pages/Identity.jsx'
 import System from './pages/System.jsx'
+import TextCheck from './pages/TextCheck.jsx'
 import ComingSoon from './pages/ComingSoon.jsx'
 
 /* Navigation mirrors the product design. Entries marked `soon` are honest
@@ -30,10 +31,15 @@ const NAV = [
       { to: '/scan?type=image', label: 'Image Verification', icon: '▣' },
       { to: '/scan?type=video', label: 'Video Verification', icon: '▶' },
       { to: '/soon/audio',    label: 'Audio Verification', icon: '♪', soon: true },
-      { to: '/soon/text',     label: 'Text Verification',  icon: '¶', soon: true },
       { to: '/soon/provenance', label: 'Provenance Checker', icon: '⚿', soon: true },
       { to: '/soon/camera',   label: 'Live Camera',        icon: '◉', soon: true },
       { to: '/soon/mic',      label: 'Live Microphone',    icon: '◎', soon: true },
+    ],
+  },
+  {
+    section: 'Text Analysis',
+    items: [
+      { to: '/text', label: 'Plagiarism & AI Text', icon: '¶' },
     ],
   },
   {

@@ -27,6 +27,7 @@ import auth                   # noqa: E402
 import config as cfg          # noqa: E402
 import database as db         # noqa: E402
 import pipeline               # noqa: E402
+import textcheck              # noqa: E402
 import video as video_mod     # noqa: E402
 from detector import DeepfakeDetector   # noqa: E402
 from faces import FaceAnalyzer          # noqa: E402
@@ -434,6 +435,30 @@ async def auth_logout(request: Request, response: Response):
 def auth_me(request: Request):
     user = auth.current_user(request.cookies.get(_COOKIE))
     return {"authenticated": user is not None, "user": user}
+
+
+# ------------------------------------------------------------------------ text
+@app.post("/api/text/analyze")
+async def text_analyze(text: str = Form(...),
+                       reference: str = Form(""),
+                       check_plagiarism: bool = Form(True),
+                       check_ai: bool = Form(True)):
+    """Plagiarism overlap and AI-generation indicators.
+
+    The two results are not equivalent in strength, and the response keeps them
+    separate for that reason: plagiarism overlap is an exact measurement
+    against the supplied reference, while the AI figure is a summary of
+    stylistic statistics that no detector can turn into proof.
+    """
+    if len(text) > 200_000:
+        raise HTTPException(status_code=413,
+                            detail="Text is too long; limit is 200,000 characters.")
+    try:
+        return textcheck.analyze(text, reference,
+                                 want_plagiarism=check_plagiarism,
+                                 want_ai=check_ai)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 # ------------------------------------------------------------------- assistant

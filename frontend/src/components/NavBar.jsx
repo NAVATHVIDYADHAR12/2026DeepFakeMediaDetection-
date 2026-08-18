@@ -25,6 +25,7 @@ const PRIMARY = [
   { to: '/scan',      label: 'Scanner',   icon: '⊕' },
   { to: '/models',    label: 'Models',    icon: '◫' },
   { to: '/identity',  label: 'Face ID',   icon: '☺' },
+  { to: '/text',      label: 'Text',      icon: '¶' },
   { to: '/history',   label: 'History',   icon: '≡' },
 ]
 

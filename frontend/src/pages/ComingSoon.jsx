@@ -8,10 +8,6 @@ const TOPICS = {
     title: 'Audio Verification',
     body: 'Voice-cloning detection. The planned approach is a CNN over mel-spectrograms trained on ASVspoof / WaveFake, which is a separate model and training run from the visual pipeline.',
   },
-  text: {
-    title: 'Text Verification',
-    body: 'AI-generated text detection. A fundamentally different problem from image forensics — it needs a language model, not a vision model.',
-  },
   provenance: {
     title: 'Provenance Checker',
     body: 'Full C2PA manifest parsing with cryptographic validation against a trust list. The scanner already reports whether a credential is present; verifying its signature is the next step.',
