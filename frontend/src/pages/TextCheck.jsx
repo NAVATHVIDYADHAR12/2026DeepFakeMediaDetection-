@@ -27,45 +27,104 @@ const VERDICT_COLOUR = {
 
 const colourFor = (v) => VERDICT_COLOUR[v] ?? 'var(--ink-muted)'
 
+const MARK_STYLE = {
+  plagiarism: {
+    colour: 'var(--warning)',
+    fill: 'color-mix(in srgb, var(--warning) 26%, transparent)',
+  },
+  ai: {
+    colour: 'var(--brand)',
+    fill: 'color-mix(in srgb, var(--brand) 22%, transparent)',
+  },
+  both: {
+    colour: 'var(--critical)',
+    fill: 'color-mix(in srgb, var(--critical) 26%, transparent)',
+  },
+}
+
 /**
- * Rebuild the submitted text with matching runs marked.
+ * Rebuild the submitted text with suspected regions marked.
  *
- * The backend returns character offsets into the original string, so the text
- * is shown exactly as typed — punctuation, capitalisation and line breaks
- * intact — rather than a reconstructed lowercase copy.
+ * Takes both kinds of region at once and resolves overlaps, because a passage
+ * can be flagged by both checks and rendering two overlapping <mark> elements
+ * would produce invalid nesting. The text is sliced by character offsets from
+ * the backend, so it appears exactly as typed — capitalisation, punctuation
+ * and line breaks intact.
  */
-function highlight(text, spans) {
-  if (!spans?.length) return text
+function highlight(text, plagiarismSpans = [], aiSpans = []) {
+  const marks = [
+    ...plagiarismSpans.map((s) => ({ ...s, kind: 'plagiarism' })),
+    ...aiSpans.map((s) => ({ ...s, kind: 'ai' })),
+  ]
+  if (!marks.length) return text
+
+  // Sweep the boundaries so every character gets exactly one classification.
+  const edges = new Set([0, text.length])
+  marks.forEach((m) => { edges.add(m.start); edges.add(m.end) })
+  const points = [...edges].sort((a, b) => a - b)
 
   const parts = []
-  let cursor = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    const from = points[i]
+    const to = points[i + 1]
+    if (to <= from) continue
 
-  spans.forEach((span, i) => {
-    if (span.start > cursor) {
-      parts.push(<span key={`plain-${i}`}>{text.slice(cursor, span.start)}</span>)
+    const covering = marks.filter((m) => m.start <= from && m.end >= to)
+    const slice = text.slice(from, to)
+
+    if (!covering.length) {
+      parts.push(<span key={from}>{slice}</span>)
+      continue
     }
+
+    const kinds = new Set(covering.map((m) => m.kind))
+    const kind = kinds.size > 1 ? 'both' : [...kinds][0]
+    const style = MARK_STYLE[kind]
+
+    const title = covering
+      .map((m) => m.kind === 'plagiarism'
+        ? `Plagiarism: ${m.words} consecutive words found in the reference`
+        : `AI indicators (${m.strength}%): ${m.reasons?.join('; ')}`)
+      .join('\n')
+
     parts.push(
-      <mark
-        key={`hit-${i}`}
-        title={`${span.words} consecutive words found in the reference`}
-        style={{
-          background: 'color-mix(in srgb, var(--warning) 26%, transparent)',
-          color: 'var(--ink)',
-          borderBottom: '2px solid var(--warning)',
-          borderRadius: 3,
-          padding: '1px 2px',
-        }}
-      >
-        {text.slice(span.start, span.end)}
+      <mark key={from} title={title}
+            style={{
+              background: style.fill,
+              color: 'var(--ink)',
+              borderBottom: `2px solid ${style.colour}`,
+              borderRadius: 3,
+              padding: '1px 2px',
+            }}>
+        {slice}
       </mark>
     )
-    cursor = span.end
-  })
-
-  if (cursor < text.length) {
-    parts.push(<span key="plain-end">{text.slice(cursor)}</span>)
   }
   return parts
+}
+
+function Legend({ showPlagiarism, showAi }) {
+  const items = [
+    showPlagiarism && ['plagiarism', 'Matches the reference'],
+    showAi && ['ai', 'AI indicators'],
+    showPlagiarism && showAi && ['both', 'Both'],
+  ].filter(Boolean)
+
+  return (
+    <div className="flex flex-wrap gap-3 mb-2.5">
+      {items.map(([kind, label]) => (
+        <span key={kind} className="flex items-center gap-1.5 text-[11px]"
+              style={{ color: 'var(--ink-muted)' }}>
+          <span className="w-3.5 h-3.5 rounded-sm"
+                style={{
+                  background: MARK_STYLE[kind].fill,
+                  borderBottom: `2px solid ${MARK_STYLE[kind].colour}`,
+                }} />
+          {label}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function Toggle({ checked, onChange, title, body, accent }) {
@@ -157,6 +216,11 @@ export default function TextCheck() {
 
   const plag = result?.plagiarism
   const ai = result?.ai_text
+
+  // Regions to mark. Both checks report character offsets into the submitted
+  // text, so they can be rendered in one pass over the same string.
+  const plagSpans = plag?.available ? (plag.matched_spans ?? []) : []
+  const aiSpans = ai?.available ? (ai.flagged_sentences ?? []) : []
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -270,30 +334,10 @@ export default function TextCheck() {
               </div>
 
               {plag.matched_spans?.length > 0 && (
-                <div className="mt-5">
-                  <div className="text-[12px] mb-2 flex items-center gap-2" style={{ color: 'var(--ink-2)' }}>
-                    <span>Where it matches — highlighted in your text</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded"
-                          style={{
-                            background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-                            color: 'var(--warning)',
-                          }}>
-                      {plag.flagged_words} of {plag.total_words} words
-                    </span>
-                  </div>
-
-                  {/* The original text with matching runs marked in place. Spans
-                      are character offsets into the text exactly as submitted,
-                      so punctuation and capitalisation are preserved. */}
-                  <div className="text-[13px] leading-[1.9] px-4 py-3 rounded-xl whitespace-pre-wrap"
-                       style={{
-                         background: 'rgba(3,7,18,.45)',
-                         border: '1px solid var(--border)',
-                         color: 'var(--ink-2)',
-                       }}>
-                    {highlight(text, plag.matched_spans)}
-                  </div>
-                </div>
+                <p className="text-[12px] mt-4" style={{ color: 'var(--ink-muted)' }}>
+                  {plag.flagged_words} of {plag.total_words} words match the reference —
+                  marked below.
+                </p>
               )}
 
               <p className="text-[11.5px] mt-4 pt-3 border-t leading-relaxed"
@@ -350,6 +394,15 @@ export default function TextCheck() {
                 </ul>
               </div>
 
+              {ai.flagged_sentences?.length > 0 && (
+                <p className="text-[12px] mt-4" style={{ color: 'var(--ink-muted)' }}>
+                  {ai.flagged_sentences.length} passage
+                  {ai.flagged_sentences.length === 1 ? '' : 's'} carry the strongest
+                  indicators ({ai.flagged_word_count} of {ai.total_word_count} words) —
+                  marked below.
+                </p>
+              )}
+
               <div className="mt-5 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
                 <p className="text-[12px] leading-relaxed"
                    style={{ color: 'var(--warning)' }}>
@@ -357,6 +410,54 @@ export default function TextCheck() {
                 </p>
               </div>
             </>
+          )}
+        </Panel>
+      )}
+
+      {/* ------------------------------------------------- marked-up text --- */}
+      {(plagSpans.length > 0 || aiSpans.length > 0) && (
+        <Panel index={3} title="Suspected Areas">
+          <p className="text-[13px] -mt-1 mb-3" style={{ color: 'var(--ink-muted)' }}>
+            Your text with every flagged region marked. Hover any highlight to see why.
+          </p>
+
+          <Legend showPlagiarism={plagSpans.length > 0} showAi={aiSpans.length > 0} />
+
+          <div className="text-[13px] leading-[1.95] px-4 py-3.5 rounded-xl whitespace-pre-wrap"
+               style={{
+                 background: 'rgba(3,7,18,.45)',
+                 border: '1px solid var(--border)',
+                 color: 'var(--ink-2)',
+               }}>
+            {highlight(text, plagSpans, aiSpans)}
+          </div>
+
+          {aiSpans.length > 0 && (
+            <div className="mt-5">
+              <div className="text-[12px] mb-2" style={{ color: 'var(--ink-2)' }}>
+                Why each passage was flagged
+              </div>
+              <ul className="space-y-2">
+                {aiSpans.map((s, i) => (
+                  <li key={i} className="text-[12px] px-3 py-2 rounded-lg fade-in"
+                      style={{
+                        '--i': i,
+                        background: 'color-mix(in srgb, var(--brand) 8%, transparent)',
+                        borderLeft: '2px solid var(--brand)',
+                      }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="tnum font-semibold" style={{ color: 'var(--brand)' }}>
+                        {s.strength}%
+                      </span>
+                      <span style={{ color: 'var(--ink-muted)' }}>· {s.words} words</span>
+                    </div>
+                    <ul className="list-disc ml-4 space-y-0.5" style={{ color: 'var(--ink-2)' }}>
+                      {s.reasons.map((r, j) => <li key={j}>{r}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </Panel>
       )}

@@ -55,6 +55,24 @@ def _sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE.findall(text) if s.strip()]
 
 
+def _sentence_spans(text: str) -> list[dict]:
+    """Sentences with character offsets into the original text.
+
+    Offsets rather than substrings, so the UI can mark a passage in place with
+    its original capitalisation and punctuation intact.
+    """
+    spans = []
+    for m in _SENTENCE.finditer(text):
+        raw = m.group()
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        lead = len(raw) - len(raw.lstrip())
+        start = m.start() + lead
+        spans.append({"start": start, "end": start + len(stripped), "text": stripped})
+    return spans
+
+
 def _shingles(words: list[str], n: int = NGRAM) -> list[tuple[str, ...]]:
     return [tuple(words[i:i + n]) for i in range(max(0, len(words) - n + 1))]
 
@@ -241,9 +259,67 @@ def check_ai_text(text: str) -> dict:
 
     score = sum(value * weight for _, value, weight, _, _ in signals)
 
+    # ---------------------------------------------------------------- regions
+    # Which sentences look most machine-like, so the result can point at
+    # passages rather than only scoring the document as a whole.
+    #
+    # Only signals that are meaningful for a single sentence are used here.
+    # Burstiness and length-normalised vocabulary diversity are properties of a
+    # document and say nothing about one sentence, so including them would
+    # invent precision that is not there.
+    shingle_counts = Counter(shingles)
+    repeated = {s for s, c in shingle_counts.items() if c > 1}
+
+    flagged_sentences = []
+    for span in _sentence_spans(text):
+        s_words = _words(span["text"])
+        if len(s_words) < 6:
+            continue
+
+        s_lower = span["text"].lower()
+        reasons = []
+        s_score = 0.0
+
+        hits = [p for p in LLM_PHRASES if p in s_lower]
+        if hits:
+            s_score += min(1.0, len(hits) / 2) * 0.55
+            reasons.append("model-typical phrasing: " + ", ".join(hits[:3]))
+
+        # Long sentences relative to this document, not an absolute threshold.
+        if avg_len and len(s_words) > avg_len * 1.35 and len(s_words) > 20:
+            s_score += 0.2
+            reasons.append(f"{len(s_words)} words, well above this document's average")
+
+        s_shingles = _shingles(s_words)
+        if s_shingles:
+            rep_here = sum(1 for sh in s_shingles if sh in repeated)
+            if rep_here:
+                s_score += min(1.0, rep_here / len(s_shingles)) * 0.25
+                reasons.append("phrasing repeated elsewhere in the text")
+
+        s_unique = len(set(s_words))
+        if len(s_words) >= 12 and s_unique / len(s_words) < 0.6:
+            s_score += 0.15
+            reasons.append("low word variety within the sentence")
+
+        if s_score >= 0.3 and reasons:
+            flagged_sentences.append({
+                "start": span["start"],
+                "end": span["end"],
+                "strength": round(min(1.0, s_score) * 100, 1),
+                "reasons": reasons,
+                "words": len(s_words),
+            })
+
+    flagged_words = sum(f["words"] for f in flagged_sentences)
+
     return {
         "available": True,
         "ai_likelihood_percent": round(score * 100, 1),
+        # Character ranges for inline marking, in document order.
+        "flagged_sentences": flagged_sentences,
+        "flagged_word_count": flagged_words,
+        "total_word_count": len(words),
         "confidence": "low",          # deliberate: see the module docstring
         "verdict": (
             "STRONG INDICATORS" if score >= 0.65 else
