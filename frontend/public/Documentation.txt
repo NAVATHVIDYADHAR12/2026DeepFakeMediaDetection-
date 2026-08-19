@@ -8,7 +8,7 @@
 
 ================================================================================
 
-  3 trained CNNs  |  190k training images  |  203 automated tests
+  3 trained CNNs  |  190k training images  |  235 automated tests
   ~200 ms per image on CPU  |  0 cloud calls
 
 A deepfake and AI-generated media detection platform that runs entirely on a
@@ -29,16 +29,18 @@ CONTENTS
    7.  Explainability
    8.  Forensic signals
    9.  Face recognition
-  10.  Technology choices
-  11.  Engineering decisions
-  12.  Data model
-  13.  API reference
-  14.  Security
-  15.  Testing
-  16.  Project structure
-  17.  Limitations
-  18.  Running it
-  19.  Future work
+  10.  Text analysis: plagiarism & AI content
+  11.  Standalone browser engine
+  12.  Technology choices
+  13.  Engineering decisions
+  14.  Data model
+  15.  API reference
+  16.  Security
+  17.  Testing
+  18.  Project structure
+  19.  Limitations
+  20.  Running it
+  21.  Future work
 
 
 ================================================================================
@@ -87,8 +89,15 @@ through social platforms.
                                              its signature
   Local accounts             WORKING         scrypt hashing, HttpOnly cookies
   In-app assistant           WORKING         Curated knowledge base + live data
+  Plagiarism detection       WORKING         Exact 5-gram overlap vs a
+                                             supplied reference, with the
+                                             matching passages marked
+  AI-generated text          INDICATORS      Six stylistic statistics with
+                                             per-passage marking. Suggestive,
+                                             not conclusive - see section 10
+  Standalone browser mode    WORKING         Runs EXIF, ELA, C2PA and history
+                                             with no backend at all
   Audio / voice cloning      NOT BUILT       Needs separate model and dataset
-  AI-generated text          NOT BUILT       A language-model problem
   Document forensics         NOT BUILT       Out of scope for this prototype
 
 Unbuilt modules appear in the interface as clearly marked placeholders that
@@ -430,7 +439,130 @@ frames so they each get an independent authenticity timeline.
 
 
 ================================================================================
-10.  TECHNOLOGY CHOICES
+10.  TEXT ANALYSIS: PLAGIARISM & AI CONTENT
+================================================================================
+
+A separate module (backend/textcheck.py) reachable from the sidebar under
+"Text Analysis". Two independent checks, selected with two filters and run by
+one button.
+
+They are deliberately kept apart, because their evidence is not of equal
+quality and presenting them identically would mislead.
+
+PLAGIARISM - A REAL MEASUREMENT
+-------------------------------
+Shared word 5-grams between the submitted text and a reference you supply.
+Long enough that a shared run is very unlikely to be coincidental, short enough
+to survive light paraphrasing around it.
+
+The percentage is the share of the document's 5-grams that also appear in the
+reference. That is an exact quantity, not an estimate.
+
+    verbatim copy        100.0%   HIGH
+    unrelated text         0.0%   MINIMAL
+    partial copy      somewhere between, with the copied run marked
+
+Matching passages are returned as CHARACTER OFFSETS into the original text, so
+the interface highlights them in place with capitalisation, punctuation and
+line breaks intact - not a reconstructed lowercase copy.
+
+  IMPORTANT: this compares two documents. It does NOT search the web. Without
+  a reference there is nothing to measure against, and the tool says so rather
+  than inventing a number.
+
+AI-GENERATED TEXT - INDICATORS, NOT DETECTION
+---------------------------------------------
+There is no signal that separates machine from human prose the way a blend
+seam separates a face swap from a photograph. What IS computable is a set of
+stylistic statistics that skew differently on average:
+
+    SIGNAL                      WEIGHT   WHAT IT MEASURES
+    ------------------------------------------------------------------------
+    Sentence-length variation     28%    Humans mix long and short sentences
+                                         more than generated text does
+    Vocabulary diversity          20%    Unique words, normalised for length
+    Internal repetition           16%    Repeated 5-grams within the passage
+    Model-typical phrasing        16%    Phrases current models overuse
+    Sentence length               10%    Consistently long sentences
+    Punctuation variety           10%    Narrow punctuation range
+
+Measured separation on held-out samples:
+
+    human-written prose     9.0%   MINIMAL INDICATORS
+    LLM-style prose        43.1%   FEW INDICATORS
+
+The interface shows every component signal with its weight, so a reader can
+judge the reasoning rather than trusting a number.
+
+MARKING SUSPECTED PASSAGES
+--------------------------
+Both checks return regions, and a combined view marks them in the text:
+
+    amber   matches the reference
+    cyan    AI indicators
+    red     both
+
+Overlaps are resolved by sweeping span boundaries so every character gets
+exactly one classification - two overlapping HTML marks would nest invalidly.
+
+Only signals meaningful for a SINGLE SENTENCE are used to flag a region:
+model-typical phrasing, length relative to this document's own average,
+participation in repeated phrasing, and low word variety. Burstiness and
+length-normalised diversity are properties of a whole document and say nothing
+about one sentence, so using them per-sentence would invent precision that is
+not there. They still contribute to the document score, where they belong.
+
+PERFORMANCE
+-----------
+    19,201 words + 2,301-word reference     187 ms
+    57,601 words + 4,601-word reference     456 ms
+
+2.4x time for 3x input - sub-linear, because document shingles are counted
+once and reused per sentence rather than recomputed.
+
+  THE HONEST FRAMING
+  ------------------
+  Published AI-text detectors misclassify human writing regularly, and the
+  consequences of a false accusation are serious. A high score here is a
+  reason to LOOK CLOSER. It is never evidence on its own, and the interface
+  says so every time it shows one.
+
+
+================================================================================
+11.  STANDALONE BROWSER ENGINE
+================================================================================
+
+When no Python service is reachable - a static deployment on Vercel or
+Netlify, for instance - the app does not go dead. It falls back to an engine
+that runs entirely in the browser (frontend/src/engine/).
+
+WHAT STILL WORKS, COMPUTED FROM THE FILE'S OWN BYTES
+    * EXIF parsing - a JPEG segment walk and TIFF IFD read for camera,
+      editing software, timestamps, GPS and metadata stripping
+    * Error Level Analysis - canvas re-encode with 8x8 block spread
+    * C2PA content-credential detection
+    * Scan history and dashboard aggregates, in IndexedDB
+
+Verified equivalent to the Python implementation: given a JPEG with known
+EXIF, the browser parser returns the same camera, model, software and
+timestamp as the backend, field for field.
+
+WHAT DOES NOT
+    The neural verdict. That needs the trained CNN ensemble, which is far too
+    large to ship to a browser. Those reports are marked UNVERIFIED and the
+    score renders as a dash - never a guessed number.
+
+WHY NOT A PRETRAINED BROWSER MODEL
+    One was evaluated: an Apache-2.0 ViT deepfake detector published for
+    browser inference. Measured against six genuine photographs it scored
+    0.44, 0.49, 0.55, 0.58, 0.74 and 0.77 - no separation, and four of the six
+    called fake. Full precision and uint8 agreed within 0.01, so this was the
+    model itself rather than quantisation damage. It was discarded: a
+    confidently wrong verdict is worse than an absent one.
+
+
+================================================================================
+12.  TECHNOLOGY CHOICES
 ================================================================================
 
   LAYER              CHOICE                  RATIONALE
@@ -479,7 +611,7 @@ frames so they each get an independent authenticity timeline.
 
 
 ================================================================================
-11.  ENGINEERING DECISIONS
+13.  ENGINEERING DECISIONS
 ================================================================================
 
 WHY THE 20% CROP MARGIN
@@ -547,7 +679,7 @@ WHY THE THEME LIVES IN SASS TOKENS
 
 
 ================================================================================
-12.  DATA MODEL
+14.  DATA MODEL
 ================================================================================
 
     scans        scan_id PK, created_at, filename, media_type, verdict,
@@ -569,7 +701,7 @@ and meaningful only during the request that produced them.
 
 
 ================================================================================
-13.  API REFERENCE
+15.  API REFERENCE
 ================================================================================
 
 Interactive documentation is generated at /docs while the server runs.
@@ -593,13 +725,14 @@ Interactive documentation is generated at /docs while the server runs.
     POST     /api/auth/login              Sign in
     POST     /api/auth/logout             Sign out
     GET      /api/auth/me                 Current session
+    POST     /api/text/analyze            Plagiarism overlap + AI indicators
     POST     /api/assistant               Ask the in-app assistant
     GET      /api/system/info             Loaded models, thresholds, limits
     GET      /api/health                  Liveness + model status
 
 
 ================================================================================
-14.  SECURITY
+16.  SECURITY
 ================================================================================
 
     MEASURE               IMPLEMENTATION
@@ -635,10 +768,10 @@ Interactive documentation is generated at /docs while the server runs.
 
 
 ================================================================================
-15.  TESTING
+17.  TESTING
 ================================================================================
 
-203 automated tests, all passing.  Run with:  pytest backend/tests -q
+235 automated tests, all passing.  Run with:  pytest backend/tests -q
 
     SUITE                      TESTS   COVERAGE
     ---------------------------------------------------------------------------
@@ -654,10 +787,13 @@ Interactive documentation is generated at /docs while the server runs.
                                        edge cases, database round-trips
     test_api.py                  26    Every HTTP endpoint, error handling,
                                        upload cleanup, regression tests
-    test_db_session.py            9    Connection closure, leak detection,
+    test_textcheck.py            30    Plagiarism overlap exactness, span
+                                       offsets, AI signal ordering, region
+                                       marking, endpoint behaviour
+    test_db_session.py           11    Connection reuse, write speed guard,
                                        concurrent writes, corruption recovery
     ---------------------------------------------------------------------------
-    TOTAL                       203
+    TOTAL                       235
 
 The suite passes with or without trained models present:
 backend/tools/make_dummy_model.py builds a structurally identical placeholder
@@ -672,7 +808,7 @@ failure it prevents.
 
 
 ================================================================================
-16.  PROJECT STRUCTURE
+18.  PROJECT STRUCTURE
 ================================================================================
 
     START.bat                     one-click launcher (venv, install, build, run)
@@ -691,25 +827,37 @@ failure it prevents.
       extract_hero_frames.py      video -> JPEG sequence for scroll animation
 
     backend/
-      main.py               476   FastAPI routes, lifespan, static serving
       assistant.py          604   curated knowledge base + live-data answers
-      database.py           284   SQLite sessions, scans, identities, recovery
-      detector.py           232   ONNX ensemble + CAM heatmaps
+      main.py               515   FastAPI routes, lifespan, static serving
+      textcheck.py          375   plagiarism overlap + AI text indicators
+      database.py           328   SQLite sessions, scans, identities, recovery
       forensics.py          236   EXIF, ELA, C2PA
+      detector.py           232   ONNX ensemble + CAM heatmaps
       auth.py               227   accounts, scrypt hashing, sessions
       video.py              213   frame sampling, tracking, aggregation
       faces.py              180   YuNet detection, SFace embeddings, tracker
       pipeline.py           155   image analysis orchestration
-      config.py              70   every tunable number
-      models/                     ONNX models (3 classifiers + YuNet + SFace)
+      config.py             113   every tunable number, environment overrides
+      bootstrap.py           89   first-boot model fetch for containers
+      models/                     YuNet + SFace committed; classifiers from
+                                  the training run
       tools/                      placeholder-model generator
-      tests/                      203 tests across 6 suites
+      tests/                      235 tests across 7 suites
 
     frontend/
-      src/                        34 source files - pages, components, hooks,
-                                  Sass design tokens
+      src/                        38 files - pages, components, hooks, Sass
+        engine/                   browser-side forensics, used when no backend
+                                  is reachable
       public/                     logo, self-hosted fonts, hero frame sequence,
                                   this document
+
+    DEPLOYMENT
+      Dockerfile                  multi-stage: Node builds the UI, Python
+                                  serves both it and the API
+      render.yaml                 one-click blueprint - the WHOLE app
+      vercel.json                 frontend-only static build
+      netlify.toml                same, for Netlify
+      requirements-server.txt     container deps (headless OpenCV)
 
     brand/                        original logo and source video (not shipped)
 
@@ -728,7 +876,7 @@ KEY CONFIGURATION  (backend/config.py)
 
 
 ================================================================================
-17.  LIMITATIONS
+19.  LIMITATIONS
 ================================================================================
 
 These are real, and stating them up front is more defensible than being caught
@@ -768,13 +916,26 @@ out by them.
 
 
 ================================================================================
-18.  RUNNING IT
+20.  RUNNING IT
 ================================================================================
 
 START THE APPLICATION
   Double-click START.bat. It creates the Python environment, installs
-  dependencies, downloads the face models, builds the dashboard, and opens
-  http://127.0.0.1:8000. Every subsequent run is immediate.
+  dependencies, builds the dashboard, and opens http://127.0.0.1:8000. Every
+  subsequent run is immediate. The face models are committed, so there is
+  nothing to download.
+
+DEPLOY IT
+  One Render service hosts the whole app: the Dockerfile builds the dashboard
+  and serves it from the same process as the API, so there is no CORS to
+  configure and no cross-site cookie handling.
+
+    render.com -> New -> Blueprint -> this repository -> Apply
+
+  Hugging Face Spaces works the same way and is also free. Vercel and Netlify
+  can host the frontend only - their function limits (250 MB unzipped and
+  50 MB zipped) are below this backend's ~261 MB - and the app falls back to
+  its browser engine there. See DEPLOYMENT.md.
 
 TRAIN THE MODELS  (once, ~50 minutes, unattended)
   1.  colab.research.google.com  ->  File  ->  Upload notebook
@@ -797,7 +958,7 @@ ADJUST THE MODEL
 
 
 ================================================================================
-19.  FUTURE WORK
+21.  FUTURE WORK
 ================================================================================
 
     DIRECTION                  WHAT IT INVOLVES

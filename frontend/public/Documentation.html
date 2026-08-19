@@ -120,7 +120,7 @@
 <div class="stat-row">
   <div class="stat"><b>3</b><span>trained CNNs</span></div>
   <div class="stat"><b>190k</b><span>training images</span></div>
-  <div class="stat"><b>203</b><span>automated tests</span></div>
+  <div class="stat"><b>235</b><span>automated tests</span></div>
   <div class="stat"><b>~200ms</b><span>per image, CPU</span></div>
   <div class="stat"><b>0</b><span>cloud calls</span></div>
 </div>
@@ -137,6 +137,8 @@
     <li><a href="#explain">Explainability</a></li>
     <li><a href="#forensics">Forensic signals</a></li>
     <li><a href="#identity">Face recognition</a></li>
+    <li><a href="#text">Text analysis: plagiarism &amp; AI</a></li>
+    <li><a href="#standalone">Standalone browser engine</a></li>
     <li><a href="#stack">Technology choices</a></li>
     <li><a href="#decisions">Engineering decisions</a></li>
     <li><a href="#data">Data model</a></li>
@@ -192,6 +194,9 @@
     <tr><td>C2PA provenance</td><td><span class="pill part">Presence only</span></td><td>Detects the manifest; does <em>not</em> verify its signature</td></tr>
     <tr><td>Local accounts</td><td><span class="pill ok">Working</span></td><td>scrypt hashing, HttpOnly session cookies</td></tr>
     <tr><td>In-app assistant</td><td><span class="pill ok">Working</span></td><td>Curated knowledge base with live database access</td></tr>
+    <tr><td>Plagiarism detection</td><td><span class="pill ok">Working</span></td><td>Exact 5-gram overlap against a supplied reference, matching passages marked in place</td></tr>
+    <tr><td>AI-generated text</td><td><span class="pill part">Indicators</span></td><td>Six stylistic statistics with per-passage marking — suggestive, never conclusive</td></tr>
+    <tr><td>Standalone browser mode</td><td><span class="pill ok">Working</span></td><td>EXIF, ELA, C2PA and history with no backend at all</td></tr>
     <tr><td>Audio / voice cloning</td><td><span class="pill no">Not built</span></td><td>Requires a separate model and dataset; labelled as such in the UI</td></tr>
     <tr><td>AI-generated text</td><td><span class="pill no">Not built</span></td><td>A language-model problem, not a vision one</td></tr>
   </tbody>
@@ -763,6 +768,7 @@ sessions     token PK · user_id FK → users(id) ON DELETE CASCADE
     <tr><td><code>GET</code></td><td><code>/api/identities</code></td><td>List enrolled identities</td></tr>
     <tr><td><code>POST</code></td><td><code>/api/auth/signup</code> · <code>/login</code> · <code>/logout</code></td><td>Account lifecycle</td></tr>
     <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current session</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/text/analyze</code></td><td>Plagiarism overlap and AI-text indicators</td></tr>
     <tr><td><code>POST</code></td><td><code>/api/assistant</code></td><td>Ask the in-app assistant</td></tr>
     <tr><td><code>GET</code></td><td><code>/api/system/info</code></td><td>Loaded models, thresholds, limits</td></tr>
   </tbody>
@@ -794,7 +800,7 @@ sessions     token PK · user_id FK → users(id) ON DELETE CASCADE
 <!-- ==================================================================== -->
 <h2 id="testing">15. Testing</h2>
 
-<p><strong>203 automated tests</strong>, all passing, executable with <code>pytest backend/tests -q</code>.</p>
+<p><strong>235 automated tests</strong>, all passing, executable with <code>pytest backend/tests -q</code>.</p>
 
 <table>
   <thead><tr><th style="width:26%">Suite</th><th style="width:10%">Tests</th><th>Coverage</th></tr></thead>
@@ -803,8 +809,9 @@ sessions     token PK · user_id FK → users(id) ON DELETE CASCADE
     <tr><td><code>test_auth.py</code></td><td>40</td><td>Hashing, salting, enumeration resistance, timing equivalence, session expiry, endpoint behaviour</td></tr>
     <tr><td><code>test_assistant.py</code></td><td>37</td><td>Intent routing across 17 topics, refusal on unknown questions, live-data accuracy</td></tr>
     <tr><td><code>test_pipeline_video.py</code></td><td>37</td><td>Image and video pipelines end to end, edge cases, database round-trips</td></tr>
+    <tr><td><code>test_textcheck.py</code></td><td>30</td><td>Plagiarism exactness, span offsets, AI signal ordering, region marking, endpoint behaviour</td></tr>
     <tr><td><code>test_api.py</code></td><td>26</td><td>Every HTTP endpoint, error handling, upload cleanup, regression tests</td></tr>
-    <tr><td><code>test_db_session.py</code></td><td>9</td><td>Connection closure, leak detection, concurrent writes, corruption recovery</td></tr>
+    <tr><td><code>test_db_session.py</code></td><td>11</td><td>Connection closure, leak detection, concurrent writes, corruption recovery</td></tr>
   </tbody>
 </table>
 
@@ -844,7 +851,7 @@ backend/
   pipeline.py       155   image analysis orchestration
   config.py          70   every tunable number
   models/                 ONNX models (3 classifiers + YuNet + SFace)
-  tests/                  203 tests across 6 suites
+  tests/                  235 tests across 7 suites
 frontend/
   src/                    34 source files — pages, components, hooks, Sass tokens
   public/                 logo, self-hosted fonts, hero frame sequence, this document</code></pre>
