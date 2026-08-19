@@ -119,6 +119,24 @@ export async function run(sql, params = []) {
   return { changes: Number(res.changes ?? 0) }
 }
 
+/**
+ * Insert one row and return its generated id.
+ *
+ * The two backends disagree completely here. SQLite reports the rowid after
+ * the fact; Postgres has no such concept and must be asked for the column up
+ * front with RETURNING. Callers pass the plain INSERT and name the id column.
+ */
+export async function insertReturningId(sql, params = [], idColumn = 'id') {
+  if (DIALECT === 'postgres') {
+    const s = await pgDriver()
+    const rows = await s.unsafe(`${toPgPlaceholders(sql)} RETURNING ${idColumn}`, params)
+    return Number(rows[0][idColumn])
+  }
+  const db = await sqliteDriver()
+  const res = db.prepare(sql).run(...params)
+  return Number(res.lastInsertRowid)
+}
+
 /** Execute a multi-statement script (schema creation). */
 export async function exec(sqlScript) {
   if (DIALECT === 'postgres') {
