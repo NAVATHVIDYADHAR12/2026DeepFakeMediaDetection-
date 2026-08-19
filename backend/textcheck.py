@@ -348,8 +348,224 @@ def check_ai_text(text: str) -> dict:
     }
 
 
+# -------------------------------------------------------- news credibility
+# What this is, and firmly what it is not.
+#
+# It does NOT determine whether a claim is true. Nothing in this file can:
+# establishing that a statement about the world is false requires knowing
+# about the world, and this module only has the string. A piece can be
+# impeccably written and entirely false, or badly written and perfectly
+# accurate, and no amount of counting adverbs separates those two.
+#
+# What IS measurable is *presentation* - the writing habits that distinguish
+# reporting from agitation. Sourced claims, hedged conclusions and calm
+# punctuation are conventions of journalism; unsourced absolutes, shouting and
+# manufactured outrage are conventions of something else. Those conventions are
+# countable, and departures from them are a reason to check a piece more
+# carefully.
+#
+# So the output is a "concern" score about *style*, never a truth verdict, and
+# the wording throughout says so. Calling it a fake-news detector would be a
+# lie about what the numbers can carry.
+
+MIN_NEWS_WORDS = 25       # headlines are short; below this even style is noise
+
+SENSATIONAL = (
+    "you won't believe", "you wont believe", "shocking", "shocked the world",
+    "doctors hate", "the truth about", "what they don't want you to know",
+    "what they dont want you to know", "wake up", "mainstream media",
+    "bombshell", "exposed", "destroyed", "slams", "obliterates", "eviscerates",
+    "miracle cure", "one weird trick", "gone wrong", "will blow your mind",
+    "this is why", "here's what happened", "heres what happened",
+    "no one is talking about", "they don't want you", "they dont want you",
+    "secret that", "banned", "censored", "silenced",
+)
+
+# Markers of attributed reporting. Their ABSENCE is the signal - a piece making
+# factual claims while naming no one who made them is the single most reliable
+# stylistic difference between reporting and assertion.
+ATTRIBUTION = (
+    "according to", "said", "says", "told", "reported", "reports",
+    "confirmed", "announced", "stated", "spokesperson", "spokesman",
+    "spokeswoman", "researchers", "study", "studies", "survey", "data from",
+    "quoted", "cited", "in a statement", "press release", "court filing",
+    "peer-reviewed", "journal",
+)
+
+# Claims phrased so they cannot be checked or contradicted.
+ABSOLUTES = (
+    "everyone knows", "nobody knows", "no one knows", "everybody knows",
+    "always", "never", "undeniable", "undeniably", "proven fact",
+    "irrefutable", "100% proven", "completely false", "totally false",
+    "beyond any doubt", "without question", "the fact is", "make no mistake",
+    "it is obvious", "obviously", "clearly the", "any reasonable person",
+)
+
+LOADED = (
+    "outrageous", "disgusting", "horrifying", "sickening", "evil", "corrupt",
+    "scam", "hoax", "lies", "lying", "betrayal", "treason", "tyranny",
+    "sheeple", "brainwashed", "agenda", "puppet", "shill", "propaganda",
+    "elites", "globalist", "witch hunt", "hysteria",
+)
+
+_CAPS_WORD = re.compile(r"\b[A-Z]{3,}\b")
+_PUNCT_RUN = re.compile(r"[!?]{2,}")
+
+
+def check_news_credibility(text: str) -> dict:
+    """Stylistic credibility signals for a news-like passage.
+
+    Reports how a piece is *written*, not whether it is true. See the comment
+    block above for why that distinction is not hedging but the actual limit of
+    what the text can support.
+    """
+    words = _words(text)
+    sentences = _sentences(text)
+
+    if len(words) < MIN_NEWS_WORDS:
+        return {
+            "available": False,
+            "reason": f"Need at least {MIN_NEWS_WORDS} words; got {len(words)}. "
+                      f"Style cannot be measured on a fragment.",
+        }
+
+    lowered = text.lower()
+
+    # 1. Sensationalist and clickbait phrasing.
+    sensational_hits = [p for p in SENSATIONAL if p in lowered]
+    sensational_signal = min(1.0, len(sensational_hits) / 3)
+
+    # 2. Shouting. Measured as a share of words so a long piece is not
+    #    penalised for one acronym, and acronyms of 3+ letters are common
+    #    enough in real reporting that the threshold sits above a trace level.
+    caps = _CAPS_WORD.findall(text)
+    caps_ratio = len(caps) / max(len(words), 1)
+    caps_signal = max(0.0, min(1.0, (caps_ratio - 0.01) / 0.06))
+
+    # 3. Punctuation intensity - "!!!" and "?!" are not house style anywhere
+    #    that employs a subeditor.
+    runs = _PUNCT_RUN.findall(text)
+    punct_signal = min(1.0, len(runs) / 3)
+
+    # 4. Absence of attribution, scaled by how much is being claimed. A short
+    #    opinion column needs fewer sources than a long factual account, so the
+    #    expectation grows with length rather than being a flat requirement.
+    attribution_hits = [a for a in ATTRIBUTION if a in lowered]
+    expected_sources = max(1, len(sentences) // 4)
+    attribution_signal = max(0.0, min(
+        1.0, (expected_sources - len(attribution_hits)) / expected_sources))
+
+    # 5. Unfalsifiable absolutes.
+    absolute_hits = [a for a in ABSOLUTES if a in lowered]
+    absolute_signal = min(1.0, len(absolute_hits) / 3)
+
+    # 6. Loaded and emotive vocabulary.
+    loaded_hits = [w for w in LOADED if w in lowered]
+    loaded_signal = min(1.0, len(loaded_hits) / 3)
+
+    signals = [
+        ("Missing attribution", attribution_signal, 0.26,
+         f"{len(attribution_hits)} source markers for {len(sentences)} sentences",
+         "Reporting names who said what. Claims with no source behind them are "
+         "the clearest stylistic departure from it."),
+        ("Sensationalist phrasing", sensational_signal, 0.20,
+         ", ".join(sensational_hits[:4]) if sensational_hits else "none found",
+         "Clickbait and outrage constructions written to be shared rather than read."),
+        ("Loaded language", loaded_signal, 0.18,
+         ", ".join(loaded_hits[:4]) if loaded_hits else "none found",
+         "Emotive vocabulary that characterises rather than describes."),
+        ("Unfalsifiable claims", absolute_signal, 0.16,
+         ", ".join(absolute_hits[:4]) if absolute_hits else "none found",
+         "Absolutes phrased so they cannot be checked or contradicted."),
+        ("Shouting", caps_signal, 0.12,
+         f"{len(caps)} all-caps words of {len(words)}",
+         "Capitalisation used for emphasis rather than for acronyms."),
+        ("Punctuation intensity", punct_signal, 0.08,
+         f"{len(runs)} runs of !! or ?!",
+         "Repeated exclamation and question marks."),
+    ]
+
+    score = sum(value * weight for _, value, weight, _, _ in signals)
+
+    # Sentence-level marking, same approach as the AI check: only signals that
+    # mean something for a single sentence are used. Attribution is a property
+    # of the piece, not of any one line, so it is deliberately excluded here.
+    flagged_sentences = []
+    for span in _sentence_spans(text):
+        s_words = _words(span["text"])
+        if len(s_words) < 5:
+            continue
+
+        s_lower = span["text"].lower()
+        reasons = []
+        s_score = 0.0
+
+        for label, table, weight in (
+            ("sensationalist phrasing", SENSATIONAL, 0.5),
+            ("loaded language", LOADED, 0.4),
+            ("unfalsifiable claim", ABSOLUTES, 0.35),
+        ):
+            hits = [p for p in table if p in s_lower]
+            if hits:
+                s_score += min(1.0, len(hits) / 2) * weight
+                reasons.append(f"{label}: " + ", ".join(hits[:3]))
+
+        s_caps = _CAPS_WORD.findall(span["text"])
+        if len(s_caps) >= 2:
+            s_score += 0.25
+            reasons.append(f"{len(s_caps)} all-caps words")
+
+        if _PUNCT_RUN.search(span["text"]):
+            s_score += 0.2
+            reasons.append("repeated ! or ?")
+
+        if s_score >= 0.3 and reasons:
+            flagged_sentences.append({
+                "start": span["start"],
+                "end": span["end"],
+                "strength": round(min(1.0, s_score) * 100, 1),
+                "reasons": reasons,
+                "words": len(s_words),
+            })
+
+    return {
+        "available": True,
+        "concern_percent": round(score * 100, 1),
+        "flagged_sentences": flagged_sentences,
+        "flagged_word_count": sum(f["words"] for f in flagged_sentences),
+        "total_word_count": len(words),
+        "attribution_found": attribution_hits[:8],
+        "confidence": "low",
+        "verdict": (
+            "STRONG CONCERNS" if score >= 0.60 else
+            "SOME CONCERNS" if score >= 0.40 else
+            "FEW CONCERNS" if score >= 0.22 else
+            "MINIMAL CONCERNS"
+        ),
+        "word_count": len(words),
+        "sentence_count": len(sentences),
+        "signals": [
+            {
+                "name": name,
+                "strength": round(value * 100, 1),
+                "weight": round(weight * 100),
+                "detail": detail,
+                "meaning": meaning,
+            }
+            for name, value, weight, detail, meaning in signals
+        ],
+        "note": (
+            "This measures how the passage is WRITTEN, not whether it is true. "
+            "It cannot verify a single fact - it has no access to the world, only "
+            "to this text. Well-written falsehoods score low here and clumsily "
+            "written truths score high. Use it to decide what deserves a closer "
+            "look, and check the claims themselves against primary sources."
+        ),
+    }
+
+
 def analyze(text: str, reference: str = "", want_plagiarism: bool = True,
-            want_ai: bool = True) -> dict:
+            want_ai: bool = True, want_news: bool = False) -> dict:
     """Run whichever checks were requested."""
     text = (text or "").strip()
     if not text:
@@ -368,6 +584,9 @@ def analyze(text: str, reference: str = "", want_plagiarism: bool = True,
     if want_ai:
         result["ai_text"] = check_ai_text(text)
         result["checks_run"].append("ai_text")
+    if want_news:
+        result["news_credibility"] = check_news_credibility(text)
+        result["checks_run"].append("news_credibility")
 
     if not result["checks_run"]:
         raise ValueError("Select at least one check.")

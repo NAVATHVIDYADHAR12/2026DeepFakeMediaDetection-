@@ -24,7 +24,7 @@ const COLUMNS = [
     heading: 'Not built yet',
     links: [
       { label: 'Audio Verification', to: '/soon/audio' },
-      { label: 'Text Verification', to: '/soon/text' },
+      { label: 'Text Verification', to: '/text' },
       { label: 'Live Camera', to: '/soon/camera' },
       { label: 'API Access', to: '/soon/api' },
     ],

@@ -250,3 +250,133 @@ class TestTextEndpoint:
             "text": LLM, "check_plagiarism": "false", "check_ai": "false",
         })
         assert r.status_code == 422
+
+
+# --------------------------------------------------------- news credibility
+# Held to the same standard as the AI indicators, and for the same reason:
+# these are stylistic heuristics, so the assertions are about ordering and
+# invariants. Asserting a particular percentage would pin the suite to today's
+# weights and break the moment a phrase is added to a list.
+#
+# The one thing asserted firmly is what the check refuses to claim. A module
+# that scores prose must not be readable as a truth verdict, and that is a
+# property worth a test rather than a comment.
+
+TABLOID = (
+    "SHOCKING: what they don't want you to know about the water supply!! "
+    "Everyone knows the elites have been lying for YEARS. This is disgusting "
+    "corruption and it is an undeniable proven fact. Wake up! The mainstream "
+    "media has been silenced on this outrageous scandal. Any reasonable person "
+    "can see the agenda. They always cover it up and never face consequences."
+)
+
+REPORTING = (
+    "The city council voted 7-4 on Tuesday to approve the water treatment "
+    "upgrade, according to minutes published on the council website. "
+    "Engineering director Maria Alvez said the plant would come online in "
+    "March. A study commissioned last year by the regional water authority "
+    "estimated the work would reduce contaminant levels by roughly 40 percent. "
+    "Two councillors who opposed the measure cited the cost, which a court "
+    "filing puts at twelve million pounds."
+)
+
+
+class TestNewsCredibility:
+    def test_tabloid_scores_above_sourced_reporting(self):
+        hot = textcheck.check_news_credibility(TABLOID)
+        cool = textcheck.check_news_credibility(REPORTING)
+        assert hot["concern_percent"] > cool["concern_percent"]
+
+    def test_sourced_reporting_is_not_flagged(self):
+        r = textcheck.check_news_credibility(REPORTING)
+        assert r["verdict"] == "MINIMAL CONCERNS"
+        assert r["flagged_sentences"] == []
+
+    def test_attribution_markers_are_reported(self):
+        r = textcheck.check_news_credibility(REPORTING)
+        assert "according to" in r["attribution_found"]
+
+    def test_short_text_is_refused_rather_than_scored(self):
+        r = textcheck.check_news_credibility("Too short to judge on style.")
+        assert r["available"] is False
+        assert "concern_percent" not in r
+
+    def test_score_is_a_percentage(self):
+        r = textcheck.check_news_credibility(TABLOID)
+        assert 0.0 <= r["concern_percent"] <= 100.0
+
+    def test_every_signal_is_reported_with_its_weight(self):
+        r = textcheck.check_news_credibility(TABLOID)
+        assert len(r["signals"]) == 6
+        for s in r["signals"]:
+            assert 0.0 <= s["strength"] <= 100.0
+            assert s["detail"] and s["meaning"]
+        assert sum(s["weight"] for s in r["signals"]) == 100
+
+    def test_confidence_is_declared_low(self):
+        assert textcheck.check_news_credibility(TABLOID)["confidence"] == "low"
+
+    def test_note_refuses_to_claim_it_checks_facts(self):
+        note = textcheck.check_news_credibility(TABLOID)["note"].lower()
+        # The distinction the whole check rests on: style, not truth.
+        assert "not whether it is true" in note
+        assert "cannot verify" in note
+
+    def test_flagged_spans_index_the_original_text(self):
+        r = textcheck.check_news_credibility(TABLOID)
+        assert r["flagged_sentences"], "expected the tabloid sample to flag passages"
+        for f in r["flagged_sentences"]:
+            assert 0 <= f["start"] < f["end"] <= len(TABLOID)
+            assert f["reasons"]
+
+    def test_flagged_spans_are_ordered_and_disjoint(self):
+        spans = textcheck.check_news_credibility(TABLOID)["flagged_sentences"]
+        for a, b in zip(spans, spans[1:]):
+            assert a["end"] <= b["start"]
+
+    def test_missing_attribution_scores_higher_than_present(self):
+        sourced = textcheck.check_news_credibility(REPORTING)
+        unsourced = textcheck.check_news_credibility(
+            "The water supply changed on Tuesday. The plant will come online in "
+            "March. Contaminant levels will fall by roughly forty percent. The "
+            "cost is twelve million pounds. The work begins next month."
+        )
+        by_name = lambda r: {s["name"]: s["strength"] for s in r["signals"]}
+        assert by_name(unsourced)["Missing attribution"] > by_name(sourced)["Missing attribution"]
+
+
+class TestNewsCredibilityIsOptional:
+    def test_not_run_unless_requested(self):
+        r = textcheck.analyze(LLM, HUMAN)
+        assert "news_credibility" not in r
+        assert "news_credibility" not in r["checks_run"]
+
+    def test_runs_when_requested(self):
+        r = textcheck.analyze(TABLOID, "", want_plagiarism=False,
+                              want_ai=False, want_news=True)
+        assert r["checks_run"] == ["news_credibility"]
+        assert r["news_credibility"]["available"] is True
+
+
+class TestNewsEndpoint:
+    @pytest.fixture
+    def client(self):
+        with TestClient(main.app) as c:
+            yield c
+
+    def test_news_check_over_http(self, client):
+        r = client.post("/api/text/analyze", data={
+            "text": TABLOID, "check_plagiarism": "false",
+            "check_ai": "false", "check_news": "true",
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["checks_run"] == ["news_credibility"]
+        assert body["news_credibility"]["concern_percent"] > 0
+
+    def test_news_defaults_off_so_existing_callers_are_unaffected(self, client):
+        r = client.post("/api/text/analyze", data={
+            "text": LLM, "reference": HUMAN,
+        })
+        assert r.status_code == 200, r.text
+        assert "news_credibility" not in r.json()

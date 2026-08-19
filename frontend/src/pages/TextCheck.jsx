@@ -23,6 +23,10 @@ const VERDICT_COLOUR = {
   'SOME INDICATORS': 'var(--warning)',
   'FEW INDICATORS': 'var(--brand)',
   'MINIMAL INDICATORS': 'var(--good)',
+  'STRONG CONCERNS': 'var(--critical)',
+  'SOME CONCERNS': 'var(--warning)',
+  'FEW CONCERNS': 'var(--brand)',
+  'MINIMAL CONCERNS': 'var(--good)',
 }
 
 const colourFor = (v) => VERDICT_COLOUR[v] ?? 'var(--ink-muted)'
@@ -36,10 +40,22 @@ const MARK_STYLE = {
     colour: 'var(--brand)',
     fill: 'color-mix(in srgb, var(--brand) 22%, transparent)',
   },
+  news: {
+    colour: 'var(--accent, #b06bd6)',
+    fill: 'color-mix(in srgb, var(--accent, #b06bd6) 24%, transparent)',
+  },
   both: {
     colour: 'var(--critical)',
     fill: 'color-mix(in srgb, var(--critical) 26%, transparent)',
   },
+}
+
+// One phrasing per kind, so the hover text reads the same way wherever a mark
+// came from.
+const MARK_TITLE = {
+  plagiarism: (m) => `Plagiarism: ${m.words} consecutive words found in the reference`,
+  ai: (m) => `AI indicators (${m.strength}%): ${m.reasons?.join('; ')}`,
+  news: (m) => `Credibility signals (${m.strength}%): ${m.reasons?.join('; ')}`,
 }
 
 /**
@@ -51,10 +67,11 @@ const MARK_STYLE = {
  * the backend, so it appears exactly as typed — capitalisation, punctuation
  * and line breaks intact.
  */
-function highlight(text, plagiarismSpans = [], aiSpans = []) {
+function highlight(text, plagiarismSpans = [], aiSpans = [], newsSpans = []) {
   const marks = [
     ...plagiarismSpans.map((s) => ({ ...s, kind: 'plagiarism' })),
     ...aiSpans.map((s) => ({ ...s, kind: 'ai' })),
+    ...newsSpans.map((s) => ({ ...s, kind: 'news' })),
   ]
   if (!marks.length) return text
 
@@ -81,11 +98,7 @@ function highlight(text, plagiarismSpans = [], aiSpans = []) {
     const kind = kinds.size > 1 ? 'both' : [...kinds][0]
     const style = MARK_STYLE[kind]
 
-    const title = covering
-      .map((m) => m.kind === 'plagiarism'
-        ? `Plagiarism: ${m.words} consecutive words found in the reference`
-        : `AI indicators (${m.strength}%): ${m.reasons?.join('; ')}`)
-      .join('\n')
+    const title = covering.map((m) => MARK_TITLE[m.kind](m)).join('\n')
 
     parts.push(
       <mark key={from} title={title}
@@ -103,11 +116,14 @@ function highlight(text, plagiarismSpans = [], aiSpans = []) {
   return parts
 }
 
-function Legend({ showPlagiarism, showAi }) {
+function Legend({ showPlagiarism, showAi, showNews }) {
+  // "Overlapping" rather than "Both" now that three kinds can coincide.
+  const active = [showPlagiarism, showAi, showNews].filter(Boolean).length
   const items = [
     showPlagiarism && ['plagiarism', 'Matches the reference'],
     showAi && ['ai', 'AI indicators'],
-    showPlagiarism && showAi && ['both', 'Both'],
+    showNews && ['news', 'Credibility signals'],
+    active > 1 && ['both', 'Overlapping'],
   ].filter(Boolean)
 
   return (
@@ -182,12 +198,13 @@ export default function TextCheck() {
   const [reference, setReference] = useState('')
   const [wantPlagiarism, setWantPlagiarism] = useState(true)
   const [wantAi, setWantAi] = useState(true)
+  const [wantNews, setWantNews] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0
-  const canRun = words > 0 && (wantPlagiarism || wantAi) && !busy
+  const canRun = words > 0 && (wantPlagiarism || wantAi || wantNews) && !busy
 
   const run = async () => {
     setBusy(true)
@@ -199,6 +216,7 @@ export default function TextCheck() {
       body.append('reference', reference)
       body.append('check_plagiarism', wantPlagiarism)
       body.append('check_ai', wantAi)
+      body.append('check_news', wantNews)
 
       const res = await fetch(apiUrl('/api/text/analyze'), { method: 'POST', body })
       const data = await res.json().catch(() => ({}))
@@ -216,22 +234,25 @@ export default function TextCheck() {
 
   const plag = result?.plagiarism
   const ai = result?.ai_text
+  const news = result?.news_credibility
 
   // Regions to mark. Both checks report character offsets into the submitted
   // text, so they can be rendered in one pass over the same string.
   const plagSpans = plag?.available ? (plag.matched_spans ?? []) : []
   const aiSpans = ai?.available ? (ai.flagged_sentences ?? []) : []
+  const newsSpans = news?.available ? (news.flagged_sentences ?? []) : []
 
   return (
     <div className="space-y-5 max-w-4xl">
-      <Panel index={0} title="Plagiarism & AI Text Detection">
+      <Panel index={0} title="Text Analysis">
         <p className="text-[13px] -mt-1 mb-5 leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
           Paste text to check. Plagiarism is measured exactly against a reference you supply;
           AI detection reports stylistic indicators, which are suggestive rather than conclusive.
+          News credibility looks at how a piece is written — it cannot check whether a claim is true.
         </p>
 
-        {/* The two filters */}
-        <div className="grid sm:grid-cols-2 gap-3 mb-5">
+        {/* The three filters */}
+        <div className="grid sm:grid-cols-3 gap-3 mb-5">
           <Toggle
             checked={wantPlagiarism}
             onChange={setWantPlagiarism}
@@ -245,6 +266,13 @@ export default function TextCheck() {
             accent="var(--brand)"
             title="AI-generated content"
             body="Sentence-length variation, vocabulary diversity, repetition and model-typical phrasing. Indicators, not proof."
+          />
+          <Toggle
+            checked={wantNews}
+            onChange={setWantNews}
+            accent="var(--accent, #b06bd6)"
+            title="Fake news signals"
+            body="Missing attribution, sensationalist phrasing, loaded language and unfalsifiable claims. Describes the writing, not the truth of it."
           />
         </div>
 
@@ -300,7 +328,7 @@ export default function TextCheck() {
             cursor: canRun ? 'pointer' : 'not-allowed',
           }}
         >
-          {busy ? 'Analysing…' : 'Find plagiarism & AI content'}
+          {busy ? 'Analysing…' : 'Analyse text'}
         </button>
 
         {error && (
@@ -414,14 +442,85 @@ export default function TextCheck() {
         </Panel>
       )}
 
+      {/* -------------------------------------------- news credibility --- */}
+      {news && (
+        <Panel index={3} title="Fake News Signals">
+          {!news.available ? (
+            <p className="text-[13px]" style={{ color: 'var(--ink-muted)' }}>{news.reason}</p>
+          ) : (
+            <>
+              <ScoreBlock
+                label="Credibility concern"
+                percent={news.concern_percent}
+                verdict={news.verdict}
+                caption={`${news.word_count} words, ${news.sentence_count} sentences`}
+              />
+
+              <div className="mt-4">
+                <Meter value={news.concern_percent / 100} color={colourFor(news.verdict)} />
+              </div>
+
+              <div className="mt-5">
+                <div className="text-[12px] mb-2.5" style={{ color: 'var(--ink-2)' }}>
+                  What the score is made of
+                </div>
+                <ul className="space-y-2.5">
+                  {news.signals.map((sig, i) => (
+                    <li key={sig.name} className="fade-in" style={{ '--i': i }}>
+                      <div className="flex items-center gap-3 text-[12.5px]">
+                        <span className="flex-1">{sig.name}</span>
+                        <span className="w-24">
+                          <Meter value={sig.strength / 100} color="var(--accent, #b06bd6)" height={4} />
+                        </span>
+                        <span className="tnum w-12 text-right" style={{ color: 'var(--ink-2)' }}>
+                          {sig.strength.toFixed(0)}%
+                        </span>
+                        <span className="tnum w-10 text-right text-[11px]" style={{ color: 'var(--ink-muted)' }}>
+                          ×{sig.weight}%
+                        </span>
+                      </div>
+                      <div className="text-[11px] ml-0.5 mt-0.5" style={{ color: 'var(--ink-muted)' }}>
+                        {sig.detail}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {news.attribution_found?.length > 0 && (
+                <p className="text-[12px] mt-4" style={{ color: 'var(--ink-muted)' }}>
+                  Attribution found: {news.attribution_found.join(', ')}
+                </p>
+              )}
+
+              {news.flagged_sentences?.length > 0 && (
+                <p className="text-[12px] mt-2" style={{ color: 'var(--ink-muted)' }}>
+                  {news.flagged_sentences.length} passage
+                  {news.flagged_sentences.length === 1 ? '' : 's'} carry the strongest
+                  signals ({news.flagged_word_count} of {news.total_word_count} words) —
+                  marked below.
+                </p>
+              )}
+
+              <div className="mt-5 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--warning)' }}>
+                  ⚠ {news.note}
+                </p>
+              </div>
+            </>
+          )}
+        </Panel>
+      )}
+
       {/* ------------------------------------------------- marked-up text --- */}
-      {(plagSpans.length > 0 || aiSpans.length > 0) && (
-        <Panel index={3} title="Suspected Areas">
+      {(plagSpans.length > 0 || aiSpans.length > 0 || newsSpans.length > 0) && (
+        <Panel index={4} title="Suspected Areas">
           <p className="text-[13px] -mt-1 mb-3" style={{ color: 'var(--ink-muted)' }}>
             Your text with every flagged region marked. Hover any highlight to see why.
           </p>
 
-          <Legend showPlagiarism={plagSpans.length > 0} showAi={aiSpans.length > 0} />
+          <Legend showPlagiarism={plagSpans.length > 0} showAi={aiSpans.length > 0}
+                  showNews={newsSpans.length > 0} />
 
           <div className="text-[13px] leading-[1.95] px-4 py-3.5 rounded-xl whitespace-pre-wrap"
                style={{
@@ -429,7 +528,7 @@ export default function TextCheck() {
                  border: '1px solid var(--border)',
                  color: 'var(--ink-2)',
                }}>
-            {highlight(text, plagSpans, aiSpans)}
+            {highlight(text, plagSpans, aiSpans, newsSpans)}
           </div>
 
           {aiSpans.length > 0 && (

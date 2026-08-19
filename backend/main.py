@@ -442,13 +442,16 @@ def auth_me(request: Request):
 async def text_analyze(text: str = Form(...),
                        reference: str = Form(""),
                        check_plagiarism: bool = Form(True),
-                       check_ai: bool = Form(True)):
-    """Plagiarism overlap and AI-generation indicators.
+                       check_ai: bool = Form(True),
+                       check_news: bool = Form(False)):
+    """Plagiarism overlap, AI-generation indicators and news credibility signals.
 
-    The two results are not equivalent in strength, and the response keeps them
-    separate for that reason: plagiarism overlap is an exact measurement
-    against the supplied reference, while the AI figure is a summary of
-    stylistic statistics that no detector can turn into proof.
+    The three results are not equivalent in strength, and the response keeps
+    them separate for that reason. Plagiarism overlap is an exact measurement
+    against the supplied reference. The AI figure is a summary of stylistic
+    statistics that no detector can turn into proof. The news figure is
+    narrower still: it describes how a passage is written and cannot check a
+    single claim against the world.
     """
     if len(text) > 200_000:
         raise HTTPException(status_code=413,
@@ -456,7 +459,8 @@ async def text_analyze(text: str = Form(...),
     try:
         return textcheck.analyze(text, reference,
                                  want_plagiarism=check_plagiarism,
-                                 want_ai=check_ai)
+                                 want_ai=check_ai,
+                                 want_news=check_news)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
