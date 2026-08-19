@@ -21,7 +21,14 @@ export default function Identity() {
   const matchRef = useRef(null)
 
   const load = () => api.identities().then((r) => setIdentities(r.identities)).catch((e) => setError(e.message))
-  useEffect(load, [])
+
+  // The braces matter. `load` returns a promise, and passing it directly as
+  // the effect body made React treat that promise as the cleanup function -
+  // it called it on unmount and threw "destroy is not a function", which took
+  // the whole page down to a blank screen. Awaiting is still wanted at the
+  // other call sites, so `load` keeps returning the promise and only the
+  // effect discards it.
+  useEffect(() => { load() }, [])
 
   const enroll = async (file) => {
     if (!name.trim()) { setError('Enter a name before choosing a photo.'); return }

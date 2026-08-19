@@ -41,8 +41,8 @@ const MARK_STYLE = {
     fill: 'color-mix(in srgb, var(--brand) 22%, transparent)',
   },
   news: {
-    colour: 'var(--accent, #b06bd6)',
-    fill: 'color-mix(in srgb, var(--accent, #b06bd6) 24%, transparent)',
+    colour: 'var(--signal)',
+    fill: 'color-mix(in srgb, var(--signal) 24%, transparent)',
   },
   both: {
     colour: 'var(--critical)',
@@ -270,7 +270,7 @@ export default function TextCheck() {
           <Toggle
             checked={wantNews}
             onChange={setWantNews}
-            accent="var(--accent, #b06bd6)"
+            accent="var(--signal)"
             title="Fake news signals"
             body="Missing attribution, sensationalist phrasing, loaded language and unfalsifiable claims. Describes the writing, not the truth of it."
           />
@@ -470,7 +470,7 @@ export default function TextCheck() {
                       <div className="flex items-center gap-3 text-[12.5px]">
                         <span className="flex-1">{sig.name}</span>
                         <span className="w-24">
-                          <Meter value={sig.strength / 100} color="var(--accent, #b06bd6)" height={4} />
+                          <Meter value={sig.strength / 100} color="var(--signal)" height={4} />
                         </span>
                         <span className="tnum w-12 text-right" style={{ color: 'var(--ink-2)' }}>
                           {sig.strength.toFixed(0)}%

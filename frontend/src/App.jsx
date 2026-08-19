@@ -39,7 +39,7 @@ const NAV = [
   {
     section: 'Text Analysis',
     items: [
-      { to: '/text', label: 'Plagiarism & AI Text', icon: '¶' },
+      { to: '/text', label: 'Text Analysis', icon: '¶' },
     ],
   },
   {

@@ -32,6 +32,12 @@ $neon-lime:      #39FF14;   // success / authentic
 $plasma-amber:   #FFB703;   // warning / suspicious
 $neon-crimson:   #FF3B5C;   // critical / fake  (added: the source palette had
                             // no red, and the fake verdict needs one)
+$signal-violet:  #B06BD6;   // text-analysis third mark  (added for the same
+                            // reason as the crimson: the text page marks three
+                            // kinds of passage at once, and cyan was already
+                            // spoken for by the AI marks. Two mark types in one
+                            // hue makes the legend decorative rather than
+                            // readable.)
 $titanium-steel: #E2E8F0;   // primary type
 $muted-slate:    #94A3B8;   // secondary type
 $quantum-grid:   #1E293B;   // borders, dividers
@@ -43,6 +49,7 @@ $palette: (
   'lime':     $neon-lime,
   'amber':    $plasma-amber,
   'crimson':  $neon-crimson,
+  'violet':   $signal-violet,
   'steel':    $titanium-steel,
   'slate':    $muted-slate,
   'grid':     $quantum-grid,
@@ -94,6 +101,7 @@ $on-accent: $deep-void;
   --good:           #{$neon-lime};
   --warning:        #{$plasma-amber};
   --critical:       #{$neon-crimson};
+  --signal:         #{$signal-violet};
 
   // chart chrome
   --grid:           #{rgba($quantum-grid, 0.75)};
