@@ -25,6 +25,8 @@
  * the score so a reader can judge them, and it never returns a bare verdict.
  */
 
+import { pyRound, pyFixed, round1, clamp01 } from './num.js'
+
 // --------------------------------------------------------------------- tuning
 export const MIN_WORDS = 40   // below this, every statistic is noise
 export const NGRAM = 5        // shingle size for overlap; long enough that a match
@@ -47,34 +49,6 @@ const LLM_PHRASES = [
 const WORD = () => /[a-z0-9']+/g
 const SENTENCE = () => /[^.!?]+[.!?]*/g
 
-/**
- * Round half to even, the way Python's round() and format() do.
- *
- * Not a detail worth skipping: JavaScript's toFixed rounds halves away from
- * zero, so a document of 69 words in 4 sentences averages exactly 17.25 and
- * reports "17.3 words average" here against Python's "17.2". Ties are not rare
- * in this module - the statistics are ratios of small integers, which land on
- * exactly-representable halves often.
- *
- * Scaling by a power of ten carries its own rounding error, but it errs in the
- * same direction Python's does, because both are reading the same underlying
- * binary value: round(2.675, 2) is 2.67 in both, since 2.675 is really
- * 2.67499...
- */
-function pyRound(x, n = 0) {
-  const p = 10 ** n
-  const scaled = x * p
-  const low = Math.floor(scaled)
-  const diff = scaled - low
-  if (diff > 0.5) return (low + 1) / p
-  if (diff < 0.5) return low / p
-  return (low % 2 === 0 ? low : low + 1) / p   // exact tie -> nearest even
-}
-
-/** Python's f"{x:.nf}": round half to even, then pad to n decimals. */
-const pyFixed = (x, n) => pyRound(x, n).toFixed(n)
-
-const round1 = (x) => pyRound(x, 1)
 
 function words(text) {
   return text.toLowerCase().match(WORD()) ?? []
@@ -126,7 +100,6 @@ function counter(items) {
   return m
 }
 
-const clamp01 = (x) => Math.max(0, Math.min(1, x))
 
 // ----------------------------------------------------------------- plagiarism
 /**
